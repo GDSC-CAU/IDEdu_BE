@@ -1,0 +1,55 @@
+name: idedu test pr (develop branch)
+
+on:
+  pull_request:
+    branches:
+      - develop
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Run tests
+    runs-on: ubuntu-22.04
+
+    steps:
+      # 작업 엑세스 가능하게 $GITHUB_WORKSPACE에서 저장소를 체크아웃
+      - name: Checkout branch
+        uses: actions/checkout@v3
+
+      # java 버전 세팅(JDK 17)
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'zulu'
+
+      # yml 파일 github secret에서 복사
+      - name: Copy secret
+        env:
+          APPLICATION_FILE: ${{ secrets.APPLICATION_PROFILE_TEST }}
+          DIR: ./src/main/resources
+
+          APPLICATION_FILE_NAME: application.yml
+        run: |
+          touch $DIR/$APPLICATION_FILE_NAME
+          echo "$APPLICATION_FILE" > $DIR/$APPLICATION_FILE_NAME
+
+      # github actions cache에서 gradle 캐시 기져옴 (의존성 & 빌드 데이터)
+      - name: Cache Gradle packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle
+
+      # gradlew 실행 권한 부여
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+        shell: bash
+
+      # 테스트 실행
+      - name: Run tests
+        run: ./gradlew test
+        shell: bash
