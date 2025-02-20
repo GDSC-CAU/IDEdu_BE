@@ -1,7 +1,7 @@
 package com.gdg.backend.domain.documentoperation.entity;
 
 import com.gdg.backend.common.entity.BaseTimeEntity;
-import com.gdg.backend.domain.Enum.Operation;
+import com.gdg.backend.domain.enums.Operation;
 import com.gdg.backend.domain.document.entity.Document;
 import com.gdg.backend.domain.member.entity.Member;
 import jakarta.persistence.*;
