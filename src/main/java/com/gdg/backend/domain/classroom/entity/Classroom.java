@@ -4,10 +4,12 @@ import com.gdg.backend.domain.course.entity.Course;
 import com.gdg.backend.domain.invitation.entity.Invitation;
 import com.gdg.backend.domain.notice.entity.Notice;
 import jakarta.persistence.*;
+import lombok.Getter;
 
 import java.util.List;
 
 @Entity
+@Getter
 public class Classroom {
 
     @Id
