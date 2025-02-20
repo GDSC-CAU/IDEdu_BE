@@ -28,7 +28,7 @@ jobs:
       # yml 파일 github secret에서 복사
       - name: Copy secret
         env:
-          APPLICATION_FILE: ${{ secrets.APPLICATION_TEST_PROFILE }}
+          APPLICATION_FILE: ${{ secrets.APPLICATION_PROFILE_TEST }}
           DIR: ./src/main/resources
 
           APPLICATION_FILE_NAME: application.yml
