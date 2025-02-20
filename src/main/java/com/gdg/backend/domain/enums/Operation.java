@@ -1,4 +1,4 @@
-package com.gdg.backend.domain.Enum;
+package com.gdg.backend.domain.enums;
 
 public enum Operation {
     INSERT,

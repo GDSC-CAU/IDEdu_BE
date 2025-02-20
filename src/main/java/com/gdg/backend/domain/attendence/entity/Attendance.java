@@ -4,8 +4,10 @@ import com.gdg.backend.common.entity.BaseTimeEntity;
 import com.gdg.backend.domain.course.entity.Course;
 import com.gdg.backend.domain.member.entity.Member;
 import jakarta.persistence.*;
+import lombok.Getter;
 
 @Entity
+@Getter
 public class Attendance extends BaseTimeEntity {
 
     @Id
