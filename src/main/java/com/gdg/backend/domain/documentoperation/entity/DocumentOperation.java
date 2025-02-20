@@ -25,7 +25,7 @@ public class DocumentOperation extends BaseTimeEntity {
     @JoinColumn(name = "document_id")
     private Document document;
 
-    private Integer index; // 수정된 내용의 인덱스
+    private Integer position; // 수정된 내용의 인덱스
 
     private String content; // 삽입된 텍스트
 }
