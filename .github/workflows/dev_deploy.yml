@@ -61,7 +61,7 @@ jobs:
           name: build-artifacts
           path: |
             build/libs/*-SNAPSHOT.jar
-            src/main/java/gdg/hackathon/backend
+            src/main/java/com/gdg/backend
 
   deploy:
     name: Deliver using SSH
