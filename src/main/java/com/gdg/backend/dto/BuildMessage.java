@@ -11,5 +11,6 @@ public class BuildMessage {
     private String jobId;
     private String language;
     private String code;
+    private String input;
 
 }

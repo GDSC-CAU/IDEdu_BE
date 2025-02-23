@@ -18,14 +18,12 @@ public class BuildController {
 
     private final BuildService buildService;
 
-    // 작업 제출 엔드포인트
     @PostMapping("/submit")
     public ResponseEntity<Map<String, String>> submitJob(@RequestBody BuildRequest request) {
         String jobId = buildService.submitJob(request);
         return ResponseEntity.ok(Collections.singletonMap("jobId", jobId));
     }
 
-    // 작업 결과 조회 엔드포인트
     @GetMapping("/result/{jobId}")
     public ResponseEntity<BuildResult> getResult(@PathVariable String jobId) {
         BuildResult result = buildService.getResult(jobId);

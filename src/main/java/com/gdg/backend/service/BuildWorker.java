@@ -25,7 +25,6 @@ public class BuildWorker implements MessageListener {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    // Redis 메시지 수신 시 호출됨
     @Override
     public void onMessage(Message message, byte[] pattern) {
 
@@ -35,42 +34,61 @@ public class BuildWorker implements MessageListener {
             return; // 역직렬화 실패
         }
 
-        // Docker 컨테이너 실행 (여기서는 시뮬레이션)
         String output = executeCodeInDocker(buildMessage);
 
-        // 실행 결과를 BuildResult에 담아 Redis에 저장
         BuildResult result = new BuildResult(buildMessage.getJobId(), output, "COMPLETED");
         redisTemplate.opsForHash().put("jobResults", buildMessage.getJobId(), result);
         redisTemplate.opsForHash().put("jobStatus", buildMessage.getJobId(), "COMPLETED");
     }
 
-    // 메시지를 BuildMessage 객체로 변환 (JSON 역직렬화)
     private BuildMessage deserializeMessage(Message message) {
         try {
             return objectMapper.readValue(message.getBody(), BuildMessage.class);
         } catch (Exception e) {
-            // 실제 환경에서는 로깅 및 예외 처리를 해야 합니다.
             e.printStackTrace();
             return null;
         }
     }
 
     private String executeCodeInDocker(BuildMessage buildMessage) {
-
         log.info("실행");
 
-        // buildMessage.getLanguage()에 따라 사용할 Docker 이미지를 선택
         String dockerImage = selectDockerImage(buildMessage.getLanguage());
         String code = buildMessage.getCode();
+        String input = buildMessage.getInput(); // 입력값 (BuildMessage에 추가된 필드)
 
         log.info("입력된 코드: \n" + code);
+        if (input != null && !input.isEmpty()) {
+            log.info("입력값: \n" + input);
+        }
 
-        // Java 코드 실행 방식 수정
         String command;
         if ("java".equalsIgnoreCase(buildMessage.getLanguage())) {
-            command = "printf \"%s\" '" + code.replace("\\", "\\\\").replace("\"", "\\\"") + "' > Main.java && javac Main.java && java Main";
+            String escapedCode = code.replace("\\", "\\\\").replace("\"", "\\\"");
+            if (input != null && !input.isEmpty()) {
+                String escapedInput = input.replace("'", "'\\''");
+                // 입력값이 있으면 echo로 파이프 처리
+                command = "printf \"%s\" '" + escapedCode + "' > Main.java && javac Main.java && echo '" + escapedInput + "' | java Main";
+            } else {
+                command = "printf \"%s\" '" + escapedCode + "' > Main.java && javac Main.java && java Main";
+            }
+        } else if ("python".equalsIgnoreCase(buildMessage.getLanguage())) {
+            String escapedCode = code.replace("'", "'\\''");
+            if (input != null && !input.isEmpty()) {
+                String escapedInput = input.replace("'", "'\\''");
+                // 입력값이 있으면 echo로 파이프 처리
+                command = "echo '" + escapedInput + "' | python3 -c '" + escapedCode + "'";
+            } else {
+                command = "python3 -c '" + escapedCode + "'";
+            }
         } else {
-            command = code;  // 다른 언어는 기존 방식 유지
+            // 다른 언어의 경우 입력값이 있다면 파이프로 전달
+            if (input != null && !input.isEmpty()) {
+                String escapedInput = input.replace("'", "'\\''");
+                command = "echo '" + escapedInput + "' | " + code;
+            } else {
+                command = code;
+            }
         }
 
         log.info("실행할 명령어: " + command);
@@ -99,18 +117,21 @@ public class BuildWorker implements MessageListener {
     }
 
 
-    // 언어에 따른 Docker 이미지 선택 예시 메서드
+
+
+
+
     private String selectDockerImage(String language) {
         if (language == null) {
-            return "alpine";  // 기본 이미지
+            return "alpine";
         }
         switch (language.toLowerCase()) {
             case "java":
-                return "openjdk:17";  // Java 실행을 위한 이미지
+                return "openjdk:17";
             case "python":
-                return "python:3.8";  // Python 실행을 위한 이미지
+                return "python:3.8";
             default:
-                return "alpine";  // 간단한 쉘 명령 실행을 위한 경량 이미지
+                return "alpine";
         }
     }
 
