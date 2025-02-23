@@ -1,7 +1,6 @@
-package com.gdg.backend.domain.event.controller;
+package com.gdg.backend.domain.operation.controller;
 
-import com.gdg.backend.domain.event.dto.DocumentOperationRequestDto;
-import com.gdg.backend.domain.event.dto.DocumentOperationResponseDto;
+import com.gdg.backend.domain.operation.dto.OperationRequestDto;
 import jakarta.validation.Valid;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -11,11 +10,11 @@ import java.util.concurrent.BlockingQueue;
 
 @Controller
 public class WebsocketEventController {
-    private final BlockingQueue<DocumentOperationRequestDto> operationQueue;
+    private final BlockingQueue<OperationRequestDto> operationQueue;
     private final SimpMessagingTemplate template;
 
     public WebsocketEventController(
-            BlockingQueue<DocumentOperationRequestDto> operationQueue,
+            BlockingQueue<OperationRequestDto> operationQueue,
             SimpMessagingTemplate template
     ){
         this.operationQueue = operationQueue;
@@ -24,7 +23,7 @@ public class WebsocketEventController {
 
     /** 클라이언트의 문서 편집 요청을 메시지 큐에 push */
     @MessageMapping("/edit")
-    public void receiveEditOperation(@Valid DocumentOperationRequestDto operation) throws InterruptedException {
+    public void receiveEditOperation(@Valid OperationRequestDto operation) throws InterruptedException {
         operationQueue.put(operation);
         template.convertAndSend("/sub/ack/" + operation.getDocumentId(), "ACK");
     }

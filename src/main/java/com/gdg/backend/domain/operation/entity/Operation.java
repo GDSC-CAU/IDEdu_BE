@@ -1,7 +1,6 @@
-package com.gdg.backend.domain.event.entity;
+package com.gdg.backend.domain.operation.entity;
 
 import com.gdg.backend.common.entity.BaseTimeEntity;
-import com.gdg.backend.domain.enums.Operation;
 import com.gdg.backend.domain.document.entity.Document;
 import com.gdg.backend.domain.member.entity.Member;
 import jakarta.persistence.*;
@@ -10,13 +9,13 @@ import lombok.Getter;
 
 @Entity
 @Getter
-public class DocumentOperation extends BaseTimeEntity {
+public class Operation extends BaseTimeEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Enumerated(EnumType.STRING)
-    private Operation operation;
+    private com.gdg.backend.domain.enums.Operation operation;
 
     @ManyToOne
     @JoinColumn(name = "member_id")
@@ -29,6 +28,6 @@ public class DocumentOperation extends BaseTimeEntity {
     private Long position; // 수정된 내용의 인덱스
 
     private String content; // 삽입된 텍스트
-    
+
     private Long version; // 적용 순서
 }
