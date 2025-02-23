@@ -1,4 +1,4 @@
-package com.gdg.backend.domain.event.documentoperation.entity;
+package com.gdg.backend.domain.event.entity;
 
 import com.gdg.backend.common.entity.BaseTimeEntity;
 import com.gdg.backend.domain.enums.Operation;

@@ -15,4 +15,6 @@ public class Document {
     private Long id;
 
     private String content;
+
+    private Long version;
 }
