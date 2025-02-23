@@ -2,6 +2,7 @@ package com.gdg.backend.domain.operation.entity;
 
 import com.gdg.backend.common.entity.BaseTimeEntity;
 import com.gdg.backend.domain.document.entity.Document;
+import com.gdg.backend.domain.enums.OperationType;
 import com.gdg.backend.domain.member.entity.Member;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -15,7 +16,7 @@ public class Operation extends BaseTimeEntity {
     private Long id;
 
     @Enumerated(EnumType.STRING)
-    private com.gdg.backend.domain.enums.Operation operation;
+    private OperationType operation;
 
     @ManyToOne
     @JoinColumn(name = "member_id")
