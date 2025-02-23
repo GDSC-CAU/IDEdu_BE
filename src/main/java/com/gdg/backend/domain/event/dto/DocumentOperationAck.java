@@ -1,4 +1,4 @@
-package com.gdg.backend.domain.event.entity;
+package com.gdg.backend.domain.event.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class AckEvent {
+public class DocumentOperationAck {
     private Long documentId;
     private Long version;
 }
