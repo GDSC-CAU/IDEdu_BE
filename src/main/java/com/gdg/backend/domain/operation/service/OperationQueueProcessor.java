@@ -1,9 +1,9 @@
-package com.gdg.backend.domain.event.service;
+package com.gdg.backend.domain.operation.service;
 
 import com.gdg.backend.domain.document.entity.Document;
 import com.gdg.backend.domain.document.repository.DocumentRepository;
-import com.gdg.backend.domain.event.dto.DocumentOperationRequestDto;
-import com.gdg.backend.domain.event.dto.DocumentOperationResponseDto;
+import com.gdg.backend.domain.operation.dto.OperationRequestDto;
+import com.gdg.backend.domain.operation.dto.OperationResponseDto;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -15,13 +15,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 
-/** DocumentOperation 큐에서 주기적으로 이벤트를 가져와 처리하는 클래스 */
+/** Operation 큐에서 주기적으로 이벤트를 가져와 처리하는 클래스 */
 @Component
 @RequiredArgsConstructor
 public class OperationQueueProcessor {
 
     private final DocumentRepository documentRepository;
-    private final BlockingQueue<DocumentOperationRequestDto> operationQueue;
+    private final BlockingQueue<OperationRequestDto> operationQueue;
     private final SimpMessagingTemplate template;
     private final ConcurrentHashMap<Long, AtomicLong> documentVersions = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, StringBuilder> documents = new ConcurrentHashMap<>();
@@ -32,7 +32,7 @@ public class OperationQueueProcessor {
         new Thread(() -> {
             while(true) {
                 try {
-                    DocumentOperationRequestDto operation = operationQueue.take();
+                    OperationRequestDto operation = operationQueue.take();
                     processOperation(operation);
                 } catch (InterruptedException e) {
                     System.out.println("QUEUE PROCESSOR THREAD INTERRUPTED!");
@@ -52,12 +52,12 @@ public class OperationQueueProcessor {
         });
     }
 
-    private void processOperation(DocumentOperationRequestDto operation) {
+    private void processOperation(OperationRequestDto operation) {
         // TODO OT 알고리즘 적용
         // TODO documentID 없는 경우 예외 처리
 
         // 버전 부여
-        DocumentOperationResponseDto response = DocumentOperationResponseDto.of(operation);
+        OperationResponseDto response = OperationResponseDto.of(operation);
         response.setVersion(documentVersions.get(operation.getDocumentId()).incrementAndGet());
 
         // todo 서버 문서 상태에도 변경사항 가함

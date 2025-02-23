@@ -1,7 +1,6 @@
 package com.gdg.backend.config;
 
-import com.gdg.backend.domain.event.dto.DocumentOperationRequestDto;
-import com.gdg.backend.domain.event.dto.DocumentOperationResponseDto;
+import com.gdg.backend.domain.operation.dto.OperationRequestDto;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -19,7 +18,7 @@ public class MessageQueueConfig {
      * - 용량은 일단 1000으로 세팅 (꽉 찬 후의 메시지는 공간 생길 때까지 wait) <br>
      * */
     @Bean
-    public BlockingQueue<DocumentOperationRequestDto> eventQueue() {
+    public BlockingQueue<OperationRequestDto> eventQueue() {
         // TODO Document마다 메시지큐 따로 마련하기 (Map<Long, BlockingQueue> 형식으로)
         // TODO 아니면 아예 Redis나 RabbitMQ 등등 외부 메시지 큐로 옮기기 (옮길 땐 선택이유도 같이 생각해두기!)
         return new LinkedBlockingQueue<>(1000);

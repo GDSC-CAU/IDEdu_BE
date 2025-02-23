@@ -1,4 +1,4 @@
-package com.gdg.backend.domain.event.dto;
+package com.gdg.backend.domain.operation.dto;
 
 
 import com.gdg.backend.domain.enums.Operation;
@@ -9,15 +9,15 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class DocumentOperationResponseDto {
+public class OperationResponseDto {
     Operation operation;
     Long documentId;
     String content;
     Long position;
     Long version;
 
-    public static DocumentOperationResponseDto of(DocumentOperationRequestDto request) {
-        DocumentOperationResponseDto response = new DocumentOperationResponseDto();
+    public static OperationResponseDto of(OperationRequestDto request) {
+        OperationResponseDto response = new OperationResponseDto();
         response.setOperation(request.getOperation());
         response.setDocumentId(request.getDocumentId());
         response.setContent(request.getContent());
