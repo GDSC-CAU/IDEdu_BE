@@ -12,14 +12,15 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class DocumentOperationRequestDto {
-    @NotBlank
+    @NotNull(message = "operation은 null일 수 없습니다.")
     Operation operation;
 
-    @NotNull
+    @NotNull(message = "documentId는 null일 수 없습니다.")
     Long documentId;
 
     String content;
 
+    @NotNull(message = "position은 null일 수 없습니다.")
     Long position;
 
     Long baseVersion;

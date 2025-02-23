@@ -26,7 +26,7 @@ public class WebsocketEventController {
     @MessageMapping("/edit")
     public void receiveEditOperation(@Valid DocumentOperationRequestDto operation) throws InterruptedException {
         operationQueue.put(operation);
-        template.convertAndSend("ACK");
+        template.convertAndSend("/sub/ack/" + operation.getDocumentId(), "ACK");
     }
 
 

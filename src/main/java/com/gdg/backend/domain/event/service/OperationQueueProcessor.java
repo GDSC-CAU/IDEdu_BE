@@ -57,15 +57,16 @@ public class OperationQueueProcessor {
         // TODO documentID 없는 경우 예외 처리
 
         // 버전 부여
-        DocumentOperationResponseDto response = new DocumentOperationResponseDto();
+        DocumentOperationResponseDto response = DocumentOperationResponseDto.of(operation);
         response.setVersion(documentVersions.get(operation.getDocumentId()).incrementAndGet());
 
-        // todo 서버에도 변경사항 가함
+        // todo 서버 문서 상태에도 변경사항 가함
 
-        // Operation DB에 저장할지 말지??
+        // todo Operation DB에 저장 && Document version 업데이트
+        // - 동기 처리 vs 비동기 처리
 
         // 클라이언트에 브로드캐스트
         Long docId = operation.getDocumentId();
-        template.convertAndSend("/sub/document/" + docId, response);
+        template.convertAndSend("/sub/edit/" + docId, response);
     }
 }
