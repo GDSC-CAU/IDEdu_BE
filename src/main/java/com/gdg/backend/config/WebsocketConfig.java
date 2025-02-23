@@ -11,8 +11,8 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 public class WebsocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
-        config.enableSimpleBroker("/topic"); // 내장 큐 사용 & '/topic/**' 경로로 브로드캐스트
-        config.setApplicationDestinationPrefixes("/app"); // 클라이언트는 /app으로 메시지 전송
+        config.enableSimpleBroker("/sub"); // 브로드캐스트에 내장 브로커 사용 & '/sub/**' 경로로 브로드캐스트
+        config.setApplicationDestinationPrefixes("/pub"); // 클라이언트는 '/pub'으로 메시지 전송
     }
 
     @Override
