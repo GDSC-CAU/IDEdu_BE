@@ -23,4 +23,6 @@ public class OperationRequestDto {
     Long position;
 
     Long baseVersion;
+
+    Long userId; // todo 추후에 jwt 헤더에서 유저 정보 가져오는 걸로 바꾸기
 }

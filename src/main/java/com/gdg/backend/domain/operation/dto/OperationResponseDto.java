@@ -15,6 +15,7 @@ public class OperationResponseDto {
     String content;
     Long position;
     Long version;
+    Long userId;
 
     public static OperationResponseDto of(OperationRequestDto request) {
         OperationResponseDto response = new OperationResponseDto();
@@ -23,6 +24,7 @@ public class OperationResponseDto {
         response.setContent(request.getContent());
         response.setPosition(request.getPosition());
         response.setVersion(request.getBaseVersion());
+        response.setUserId(request.getUserId());
         return response;
     }
 }

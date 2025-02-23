@@ -6,6 +6,7 @@ import com.gdg.backend.domain.enums.OperationType;
 import com.gdg.backend.domain.member.entity.Member;
 import jakarta.persistence.*;
 import lombok.Getter;
+import org.apache.catalina.User;
 
 
 @Entity
@@ -31,4 +32,8 @@ public class Operation extends BaseTimeEntity {
     private String content; // 삽입된 텍스트
 
     private Long version; // 적용 순서
+
+    @OneToOne
+    @JoinColumn(name = "user_id")
+    private Member user;
 }
