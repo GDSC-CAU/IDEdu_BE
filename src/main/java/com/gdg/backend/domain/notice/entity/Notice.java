@@ -2,8 +2,10 @@ package com.gdg.backend.domain.notice.entity;
 
 import com.gdg.backend.domain.classroom.entity.Classroom;
 import jakarta.persistence.*;
+import lombok.Getter;
 
 @Entity
+@Getter
 public class Notice {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

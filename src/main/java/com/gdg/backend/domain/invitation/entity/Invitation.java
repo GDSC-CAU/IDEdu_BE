@@ -4,8 +4,10 @@ import com.gdg.backend.common.entity.BaseTimeEntity;
 import com.gdg.backend.domain.classroom.entity.Classroom;
 import com.gdg.backend.domain.member.entity.Member;
 import jakarta.persistence.*;
+import lombok.Getter;
 
 @Entity
+@Getter
 public class Invitation extends BaseTimeEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
