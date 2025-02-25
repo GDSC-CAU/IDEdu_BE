@@ -17,7 +17,9 @@ public class OperationRequestDto {
     @NotNull(message = "documentId는 null일 수 없습니다.")
     Long documentId;
 
-    String content;
+    String insertContent;
+
+    Integer deleteLength;
 
     @NotNull(message = "position은 null일 수 없습니다.")
     Long position;

@@ -12,7 +12,8 @@ import lombok.NoArgsConstructor;
 public class OperationResponseDto {
     OperationType operation;
     Long documentId;
-    String content;
+    String insertContent;
+    Integer deleteLength;
     Long position;
     Long version;
     Long userId;
@@ -21,7 +22,8 @@ public class OperationResponseDto {
         OperationResponseDto response = new OperationResponseDto();
         response.setOperation(request.getOperation());
         response.setDocumentId(request.getDocumentId());
-        response.setContent(request.getContent());
+        response.setInsertContent(request.getInsertContent());
+        response.setDeleteLength(response.getDeleteLength());
         response.setPosition(request.getPosition());
         response.setVersion(request.getBaseVersion());
         response.setUserId(request.getUserId());
