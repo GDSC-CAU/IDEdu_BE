@@ -125,6 +125,10 @@ public class OperationQueueProcessor {
                 .build()
         );
 
+        // 로그 출력
+        System.out.println("Received: " + operation);
+        System.out.println("  수정된 위치: " + opPosition);
+        System.out.println("  수정된 버전: " + response.getVersion());
 
         // 클라이언트에 브로드캐스트
         template.convertAndSend("/sub/edit/" + docId, response);
