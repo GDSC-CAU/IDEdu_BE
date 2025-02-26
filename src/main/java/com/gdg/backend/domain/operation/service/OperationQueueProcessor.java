@@ -113,7 +113,9 @@ public class OperationQueueProcessor {
 
         // Operation DB에 저장 && Document version 업데이트
         // - 동기 처리 vs 비동기 처리
-        // - todo 메모리에 Operation 큐 만들어서 캐싱하기 (클라이언트 ACK에 맞춰 갱신)
+        // - todo 메모리에 Operation랑 Document 캐싱하기
+        //   - Operation은 큐 만들어서 캐싱하기 (클라이언트 ACK에 맞춰 갱신)
+        //   - Document는 Map<UserID, Document> 형식 or Map<UserId, StringBuilder> 형식으로 저장?
         operationRepository.save(Operation.builder()
                 .operation(response.getOperation())
                 .document(documentRepository.findById(docId).orElseThrow()) // todo
