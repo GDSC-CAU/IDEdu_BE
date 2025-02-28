@@ -1,6 +1,6 @@
 package com.gdg.backend.domain.enums;
 
-public enum Operation {
+public enum OperationType {
     INSERT,
     DELETE,
     UPDATE,
