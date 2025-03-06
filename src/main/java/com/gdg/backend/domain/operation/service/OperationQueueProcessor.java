@@ -45,6 +45,9 @@ public class OperationQueueProcessor {
                     System.out.println("QUEUE PROCESSOR THREAD INTERRUPTED!");
                     System.out.println(e.getMessage());
                     break;
+                } catch (Exception e) {
+                    System.out.println("QUEUE PROCESSOR UNCAUGHT EXCEPTION");
+                    System.out.println(e.getMessage());
                 }
             }
         }).start();
@@ -67,7 +70,8 @@ public class OperationQueueProcessor {
         });
 
         documents.stream().forEach(document -> {
-            documentVersions.put(document.getId(), new AtomicLong(document.getVersion()));
+            if(documentVersions.getOrDefault(document.getId(), new AtomicLong(-1)).get() > document.getVersion())
+                documentVersions.put(document.getId(), new AtomicLong(document.getVersion()));
         });
     }
 
@@ -86,53 +90,59 @@ public class OperationQueueProcessor {
         //   - queue로 구현해서, 클라이언트 ACK 받을 시 queue에서 옛날 event pop / 새로운 event 받을 시 queue에 push
         //   -> 클라이언트 ACK 추적 기능 구현 되면 (2)번으로 갈아타기
 
-        Long docId = operation.getDocumentId();
-        Long baseVersion = operation.getBaseVersion();
-        Long opPosition = operation.getPosition();
-        List<Operation> concurrentOperations = operationRepository.findByDocumentIdAndVersionGreaterThan(docId, baseVersion);
-        for(Operation concurrentOp: concurrentOperations) {
-            if(concurrentOp.getOperation().equals(OperationType.INSERT)
-                && concurrentOp.getPosition() < opPosition) {
-                // 현재 operation보다 앞에 삽입한 경우
-                opPosition += concurrentOp.getInsertContent().length();
+        try {
+            Long docId = operation.getDocumentId();
+            Long baseVersion = operation.getBaseVersion();
+            Long opPosition = operation.getPosition();
+            List<Operation> concurrentOperations = operationRepository.findByDocumentIdAndVersionGreaterThan(docId, baseVersion);
+            for (Operation concurrentOp : concurrentOperations) {
+                if (concurrentOp.getOperation().equals(OperationType.INSERT)
+                        && concurrentOp.getPosition() < opPosition) {
+                    // 현재 operation보다 앞에 삽입한 경우
+                    if(concurrentOp.getInsertContent() == null) continue;;
+                    opPosition += concurrentOp.getInsertContent().length();
+                } else if (concurrentOp.getOperation().equals(OperationType.DELETE)
+                        && concurrentOp.getPosition() < opPosition) {
+                    // 현재 operation보다 앞을 삭제한 경우
+                    if(concurrentOp.getDeleteLength() == null) continue;;
+                    opPosition -= concurrentOp.getDeleteLength();
+                }
             }
-            else if(concurrentOp.getOperation().equals(OperationType.DELETE)
-                && concurrentOp.getPosition() < opPosition) {
-                // 현재 operation보다 앞을 삭제한 경우
-                opPosition -= concurrentOp.getDeleteLength();
-            }
+
+            // 버전 부여
+            OperationResponseDto response = OperationResponseDto.of(operation);
+            response.setPosition(opPosition);
+            response.setVersion(documentVersions.get(operation.getDocumentId()).incrementAndGet());
+
+            // todo 서버 문서 상태에도 변경사항 가함
+
+
+            // Operation DB에 저장 && Document version 업데이트
+            // - 동기 처리 vs 비동기 처리
+            // - todo 메모리에 Operation랑 Document 캐싱하기
+            //   - Operation은 큐 만들어서 캐싱하기 (클라이언트 ACK에 맞춰 갱신)
+            //   - Document는 Map<UserID, Document> 형식 or Map<UserId, StringBuilder> 형식으로 저장?
+            operationRepository.save(Operation.builder()
+                    .operation(response.getOperation())
+                    .document(documentRepository.findById(docId).orElseThrow()) // todo
+                    .position(response.getPosition())
+                    .insertContent(response.getInsertContent())
+                    .deleteLength(response.getDeleteLength())
+                    .version(response.getVersion())
+                    .member(null) // todo
+                    .build()
+            );
+
+            // 로그 출력
+            System.out.println("Received: " + operation);
+            System.out.println("  수정된 위치: " + opPosition);
+            System.out.println("  수정된 버전: " + response.getVersion());
+
+            // 클라이언트에 브로드캐스트
+            template.convertAndSend("/sub/edit/" + docId, response);
+        } catch (Exception e) {
+            System.out.println("Exception while handling operation " + operation);
+            System.out.println(e.getMessage());
         }
-
-        // 버전 부여
-        OperationResponseDto response = OperationResponseDto.of(operation);
-        response.setPosition(opPosition);
-        response.setVersion(documentVersions.get(operation.getDocumentId()).incrementAndGet());
-
-        // todo 서버 문서 상태에도 변경사항 가함
-
-
-        // Operation DB에 저장 && Document version 업데이트
-        // - 동기 처리 vs 비동기 처리
-        // - todo 메모리에 Operation랑 Document 캐싱하기
-        //   - Operation은 큐 만들어서 캐싱하기 (클라이언트 ACK에 맞춰 갱신)
-        //   - Document는 Map<UserID, Document> 형식 or Map<UserId, StringBuilder> 형식으로 저장?
-        operationRepository.save(Operation.builder()
-                .operation(response.getOperation())
-                .document(documentRepository.findById(docId).orElseThrow()) // todo
-                .position(response.getPosition())
-                .insertContent(response.getInsertContent())
-                .deleteLength(response.getDeleteLength())
-                .version(response.getVersion())
-                .member(null) // todo
-                .build()
-        );
-
-        // 로그 출력
-        System.out.println("Received: " + operation);
-        System.out.println("  수정된 위치: " + opPosition);
-        System.out.println("  수정된 버전: " + response.getVersion());
-
-        // 클라이언트에 브로드캐스트
-        template.convertAndSend("/sub/edit/" + docId, response);
     }
 }
