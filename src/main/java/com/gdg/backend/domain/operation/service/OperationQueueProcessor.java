@@ -45,6 +45,9 @@ public class OperationQueueProcessor {
                     System.out.println("QUEUE PROCESSOR THREAD INTERRUPTED!");
                     System.out.println(e.getMessage());
                     break;
+                } catch (Exception e) {
+                    System.out.println("QUEUE PROCESSOR UNCAUGHT EXCEPTION");
+                    System.out.println(e.getMessage());
                 }
             }
         }).start();
