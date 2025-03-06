@@ -24,14 +24,17 @@ public class ExceptionController implements ErrorController {
     @RequestMapping("/error")
     @ResponseBody
     public ApiResponse<Object> handlerError(WebRequest request) {
+
         Map<String, Object> errorAttributes = this.errorAttributes.getErrorAttributes(request, ErrorAttributeOptions.defaults());
 
+        System.out.println(errorAttributes);
+
         int status = (int) errorAttributes.getOrDefault("status", 500);
-        String message = (String) errorAttributes.getOrDefault("message", "Unexpected error");
+        String message = (String) errorAttributes.getOrDefault("error", "Unexpected error");
 
         System.out.println("CustomErrorController: received status : " + status);
         System.out.println("CustomErrorController: error message - " + message);
 
-        return ApiResponse.onFailure(ErrorCode._INTERNAL_SERVER_ERROR.getCode(), "알 수 없는 에러입니다.", "ERROR");
+        return ApiResponse.onFailure(String.valueOf(status), message, "ERROR");
     }
 }

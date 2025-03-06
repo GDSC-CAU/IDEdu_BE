@@ -10,6 +10,6 @@ import lombok.experimental.SuperBuilder;
 @Getter
 @SuperBuilder
 @AllArgsConstructor
-public class Student extends Member {
+public class Teacher extends Member {
 
 }

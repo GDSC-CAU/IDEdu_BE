@@ -56,7 +56,7 @@ public class ExceptionAdvice extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(GeneralException.class)
     public ResponseEntity<Object> handleGeneralException(GeneralException generalException, HttpServletRequest request) {
-        log.error("General exception occurred: ", generalException);
+        log.error("General exception occurred: {}", generalException.getCode());
         ErrorReasonDTO errorReasonHttpStatus = generalException.getErrorReasonHttpStatus();
         return handleExceptionInternal(generalException, errorReasonHttpStatus, null, request);
     }

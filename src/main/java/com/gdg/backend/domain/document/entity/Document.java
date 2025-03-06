@@ -1,10 +1,7 @@
 package com.gdg.backend.domain.document.entity;
 
 import com.gdg.backend.common.entity.BaseTimeEntity;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -23,5 +20,6 @@ public class Document extends BaseTimeEntity {
 
     private String content;
 
+    @Version
     private Long version;
 }
