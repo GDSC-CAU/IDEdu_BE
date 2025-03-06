@@ -32,7 +32,7 @@ public class OperationRequestDto {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(operation).append(" ");
-        if(operation.equals(OperationType.INSERT)) sb.append(insertContent + " ");
+        if(operation.equals(OperationType.INSERT)) sb.append("'" + insertContent + "' ");
         if(operation.equals(OperationType.DELETE)) sb.append(deleteLength + " ");
         sb.append("pos=").append(position).append(" ")
           .append(String.format("docId=%d, version=%d, userId=%d", documentId, baseVersion, userId));
