@@ -27,7 +27,7 @@ public class SecurityConfig {
                 .headers(headers -> headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::disable)) // H2 콘솔 허용
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // 세션 사용 안 함
                 .authorizeHttpRequests(auth -> auth
-                        .anyRequest().permitAll() // 🔥 모든 요청 허용 🔥
+                        .anyRequest().permitAll() //  모든 요청 허용
                 )
                 .exceptionHandling(exceptionConfig ->
                         exceptionConfig.authenticationEntryPoint(new CustomAuthenticationEntryPoint())
