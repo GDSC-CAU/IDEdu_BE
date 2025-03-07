@@ -4,20 +4,22 @@ import com.gdg.backend.common.exception.handler.GeneralHandler;
 import com.gdg.backend.common.jwt.CustomPasswordEncoder;
 import com.gdg.backend.common.jwt.JwtTokenProvider;
 import com.gdg.backend.common.response.status.ErrorCode;
-import com.gdg.backend.domain.member.dto.SignInRequestDto;
-import com.gdg.backend.domain.member.dto.SignInResponseDto;
-import com.gdg.backend.domain.member.dto.SignUpRequestDto;
-import com.gdg.backend.domain.member.dto.SignUpResponseDto;
+import com.gdg.backend.domain.classroom.entity.Classroom;
+import com.gdg.backend.domain.classroom.repository.ClassroomRepository;
+import com.gdg.backend.domain.invitation.entity.Invitation;
+import com.gdg.backend.domain.member.dto.*;
 import com.gdg.backend.domain.member.entity.Member;
 import com.gdg.backend.domain.member.entity.Student;
 import com.gdg.backend.domain.member.entity.Teacher;
+import com.gdg.backend.domain.invitation.repository.InvitationRepository;
 import com.gdg.backend.domain.member.repository.MemberRepository;
 import com.gdg.backend.domain.member.repository.StudentRepository;
 import com.gdg.backend.domain.member.repository.TeacherRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 @Service
 @Slf4j
@@ -27,8 +29,10 @@ public class MemberServiceImpl implements MemberService {
     private final StudentRepository studentRepository;
     private final TeacherRepository teacherRepository;
     private final MemberRepository memberRepository;
-    private final CustomPasswordEncoder passwordEncoder; // final 추가
+    private final CustomPasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final InvitationRepository invitationRepository;
+    private final ClassroomRepository classroomRepository;
 
     @Override
     public SignUpResponseDto register(SignUpRequestDto signUpRequestDto) {
@@ -100,5 +104,39 @@ public class MemberServiceImpl implements MemberService {
         log.info("[getSignInResult] SignInResultDto 객체에 값 주입");
 
         return signInResultDto;
+    }
+
+    @Override
+    public Object getDashboardInfo(Member member) {
+
+        log.info(member.getUsername());
+
+        if (member instanceof Student) {
+
+            List<Invitation> invitations = invitationRepository.findAllByMember(member);
+
+            List<CourseInfo.StudentCourseInfo> studentCourseInfos = new java.util.ArrayList<>(List.of());
+
+            invitations.forEach(invitation -> {
+                studentCourseInfos.add(new CourseInfo.StudentCourseInfo(invitation.getClassroom().getName(), invitation.getClassroom().getTeacher().getUsername()));
+            });
+
+            return new DashBoardInfoDto.StudentDashBoardInfoDto(member.getUsername(), studentCourseInfos);
+
+        } else if (member instanceof Teacher) {
+
+            List<Classroom> classrooms = classroomRepository.findAllByTeacher((Teacher) member);
+
+            List<CourseInfo.TeacherCourseInfo> teacherCourseInfos = new java.util.ArrayList<>(List.of());
+
+            classrooms.forEach(classroom -> {
+                teacherCourseInfos.add(new CourseInfo.TeacherCourseInfo(classroom.getInvitationCode(), classroom.getName()));
+            });
+
+            return new DashBoardInfoDto.TeacherDashBoardInfoDto(member.getUsername(), teacherCourseInfos);
+
+        } else {
+            throw new IllegalArgumentException("Unknown member type");
+        }
     }
 }

@@ -22,7 +22,6 @@ public class Course {
     @JoinColumn(name = "classroom_id")
     private Classroom classroom;
 
-
     @OneToMany(mappedBy = "course")
     private List<Attendance> attendances;
 
