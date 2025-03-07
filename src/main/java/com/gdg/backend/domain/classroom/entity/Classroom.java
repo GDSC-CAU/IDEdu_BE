@@ -28,7 +28,7 @@ public class Classroom {
 
     private String invitationCode;
 
-    @OneToOne
+    @ManyToOne
     private Teacher teacher;
 
     @OneToMany(mappedBy = "classroom")
