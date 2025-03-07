@@ -13,7 +13,6 @@ import lombok.experimental.SuperBuilder;
 @NoArgsConstructor
 @AllArgsConstructor
 public abstract class Member {
-
     @Id
     @GeneratedValue
     private Long id;
@@ -26,5 +25,4 @@ public abstract class Member {
 
     @Column(nullable = false)
     private String password;
-
 }

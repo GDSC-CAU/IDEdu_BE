@@ -28,6 +28,9 @@ public enum ErrorCode implements BaseErrorCode {
 
     UNSIGNED(HttpStatus.BAD_REQUEST, "POST4001", "로그인 되어 있지 않습니다."),
 
+    INVALID_CODE(HttpStatus.BAD_REQUEST, "CLASS4000", "유효하지 않은 코드입니다."),
+    CLASS_ALREADY_EXIST(HttpStatus.BAD_REQUEST, "CLASS4001", "이미 존재하는 강의실명입니다."),
+
     ;
 
 
