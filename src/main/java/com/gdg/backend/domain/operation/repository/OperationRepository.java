@@ -10,5 +10,7 @@ import java.util.List;
 public interface OperationRepository extends JpaRepository<Operation, Long> {
 
     List<Operation> findByDocumentIdAndVersionGreaterThan(Long documentId, Long version);
+
+    void deleteByDocumentId(Long testDocId);
 }
 

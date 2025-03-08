@@ -56,15 +56,22 @@ public class OperationQueueProcessor {
     /** DB에 존재하는 Document version pool 추적 (인메모리라서 서버 껐다키면 사라지니까..) */
     @PostConstruct
     public void fillDocumentVersionPool () {
-        // (임시) 테스트 문서 초기화
-        final Long TEST_DOC_ID = 1L;
-        Document testDoc = documentRepository.findById(TEST_DOC_ID)
-                .orElse(Document.builder()
-                        .id(1L)
-                        .build());
-        testDoc.setVersion(0L);
-        testDoc.setContent("");
-        documentRepository.save(testDoc);
+        try {
+            // (임시) 테스트 문서 초기화
+            final Long TEST_DOC_ID = 1L;
+            Document testDoc = documentRepository.findById(TEST_DOC_ID)
+                    .orElse(Document.builder()
+                            .id(1L)
+                            .build());
+            testDoc.setVersion(0L);
+            testDoc.setContent("");
+            documentRepository.save(testDoc);
+            // (임시) 테스트 문서 operation 로그 초기화
+            operationRepository.deleteByDocumentId(TEST_DOC_ID);
+        } catch (Exception e) {
+            System.out.println("Exception while initializing OperationQueueProcessor");
+            System.out.println(e.getMessage());
+        }
 
         List<Document> documents = documentRepository.findAll();
         documents.stream().forEach(document -> {
