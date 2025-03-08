@@ -56,19 +56,17 @@ public class OperationQueueProcessor {
     /** DB에 존재하는 Document version pool 추적 (인메모리라서 서버 껐다키면 사라지니까..) */
     @PostConstruct
     public void fillDocumentVersionPool () {
-        List<Document> documents = documentRepository.findAll();
-        Document testDoc;
-        Optional<Document> optionalTestDoc = documents.stream().filter((document) -> document.getId() == 1).findFirst();
-        testDoc = optionalTestDoc.orElseGet(() -> {
-            Document doc = Document.builder()
-                .id(1L)
-                .version(0L)
-                .content("")
-                .build();
-            documentRepository.save(doc);
-            return doc;
-        });
+        // (임시) 테스트 문서 초기화
+        final Long TEST_DOC_ID = 1L;
+        Document testDoc = documentRepository.findById(TEST_DOC_ID)
+                .orElse(Document.builder()
+                        .id(1L)
+                        .build());
+        testDoc.setVersion(0L);
+        testDoc.setContent("");
+        documentRepository.save(testDoc);
 
+        List<Document> documents = documentRepository.findAll();
         documents.stream().forEach(document -> {
             if(documentVersions.getOrDefault(document.getId(), new AtomicLong(-1)).get() > document.getVersion())
                 documentVersions.put(document.getId(), new AtomicLong(document.getVersion()));
