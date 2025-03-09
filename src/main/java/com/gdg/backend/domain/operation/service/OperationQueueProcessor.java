@@ -13,7 +13,6 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -75,9 +74,10 @@ public class OperationQueueProcessor {
 
         List<Document> documents = documentRepository.findAll();
         documents.stream().forEach(document -> {
-            if(documentVersions.getOrDefault(document.getId(), new AtomicLong(-1)).get() > document.getVersion())
+            if(document.getVersion() > documentVersions.getOrDefault(document.getId(), new AtomicLong(-1)).get())
                 documentVersions.put(document.getId(), new AtomicLong(document.getVersion()));
         });
+        System.out.println("FILLED DOCUMENT POOL: " + documentVersions);
     }
 
     private void processOperation(OperationRequestDto operation) {
