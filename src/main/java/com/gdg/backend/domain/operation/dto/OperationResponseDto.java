@@ -23,7 +23,7 @@ public class OperationResponseDto {
         response.setOperation(request.getOperation());
         response.setDocumentId(request.getDocumentId());
         response.setInsertContent(request.getInsertContent());
-        response.setDeleteLength(response.getDeleteLength());
+        response.setDeleteLength(request.getDeleteLength());
         response.setPosition(request.getPosition());
         response.setVersion(request.getBaseVersion());
         response.setUserId(request.getUserId());
