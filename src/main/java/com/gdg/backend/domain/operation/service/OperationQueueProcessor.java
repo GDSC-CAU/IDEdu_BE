@@ -10,6 +10,7 @@ import com.gdg.backend.domain.operation.entity.Operation;
 import com.gdg.backend.domain.operation.repository.OperationRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
 
@@ -23,6 +24,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 
 /** OperationType 큐에서 주기적으로 이벤트를 가져와 처리하는 클래스 */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class OperationQueueProcessor {
@@ -104,7 +106,7 @@ public class OperationQueueProcessor {
             // 로그 출력
             ZonedDateTime now = ZonedDateTime.now(ZoneId.of("Asia/Seoul"));
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
-            System.out.println(now.format(formatter) + " Received: " + operation);
+            log.info("{} Received: {}", now.format(formatter), operation);
 
             Long docId = operation.getDocumentId();
             Long baseVersion = operation.getBaseVersion();
@@ -149,7 +151,7 @@ public class OperationQueueProcessor {
             );
 
             // 로그 출력
-            System.out.println("  수정된 Operation: " + response);
+           log.info("  수정된 Operation: {}", response);
 
             // 클라이언트에 브로드캐스트
             template.convertAndSend("/sub/edit/" + docId, response);
