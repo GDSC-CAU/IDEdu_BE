@@ -13,6 +13,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
 
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -98,6 +101,11 @@ public class OperationQueueProcessor {
         //   -> 클라이언트 ACK 추적 기능 구현 되면 (2)번으로 갈아타기
 
         try {
+            // 로그 출력
+            ZonedDateTime now = ZonedDateTime.now(ZoneId.of("Asia/Seoul"));
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
+            System.out.println(now.format(formatter) + " Received: " + operation);
+
             Long docId = operation.getDocumentId();
             Long baseVersion = operation.getBaseVersion();
             Long opPosition = operation.getPosition();
@@ -129,7 +137,6 @@ public class OperationQueueProcessor {
             // - todo 메모리에 Operation랑 Document 캐싱하기
             //   - Operation은 큐 만들어서 캐싱하기 (클라이언트 ACK에 맞춰 갱신)
             //   - Document는 Map<UserID, Document> 형식 or Map<UserId, StringBuilder> 형식으로 저장?
-            long start = System.currentTimeMillis();
             operationRepository.save(Operation.builder()
                     .operation(response.getOperation())
                     .document(documentRepository.findById(docId).orElseThrow()) // todo
@@ -140,13 +147,9 @@ public class OperationQueueProcessor {
                     .member(null) // todo
                     .build()
             );
-            long end = System.currentTimeMillis();
-            System.out.println("OperationRepository: save() took " + (end - start) + "ms");
 
             // 로그 출력
-            System.out.println("Received: " + operation);
-            System.out.println("  수정된 위치: " + opPosition);
-            System.out.println("  수정된 버전: " + response.getVersion());
+            System.out.println("  수정된 Operation: " + response);
 
             // 클라이언트에 브로드캐스트
             template.convertAndSend("/sub/edit/" + docId, response);
