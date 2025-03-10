@@ -1,5 +1,6 @@
 package com.gdg.backend.domain.operation.service;
 
+import com.gdg.backend.common.annotation.TrackExecutionTime;
 import com.gdg.backend.domain.document.entity.Document;
 import com.gdg.backend.domain.document.repository.DocumentRepository;
 import com.gdg.backend.domain.enums.OperationType;
@@ -80,6 +81,7 @@ public class OperationQueueProcessor {
         System.out.println("FILLED DOCUMENT POOL: " + documentVersions);
     }
 
+    @TrackExecutionTime
     private void processOperation(OperationRequestDto operation) {
         // todo documentID 없는 경우 예외 처리
 
@@ -127,6 +129,7 @@ public class OperationQueueProcessor {
             // - todo 메모리에 Operation랑 Document 캐싱하기
             //   - Operation은 큐 만들어서 캐싱하기 (클라이언트 ACK에 맞춰 갱신)
             //   - Document는 Map<UserID, Document> 형식 or Map<UserId, StringBuilder> 형식으로 저장?
+            long start = System.currentTimeMillis();
             operationRepository.save(Operation.builder()
                     .operation(response.getOperation())
                     .document(documentRepository.findById(docId).orElseThrow()) // todo
@@ -137,6 +140,8 @@ public class OperationQueueProcessor {
                     .member(null) // todo
                     .build()
             );
+            long end = System.currentTimeMillis();
+            System.out.println("OperationRepository: save() took " + (end - start) + "ms");
 
             // 로그 출력
             System.out.println("Received: " + operation);
