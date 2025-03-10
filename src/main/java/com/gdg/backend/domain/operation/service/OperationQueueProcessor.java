@@ -1,5 +1,7 @@
 package com.gdg.backend.domain.operation.service;
 
+import com.gdg.backend.common.exception.handler.GeneralHandler;
+import com.gdg.backend.common.response.status.ErrorCode;
 import com.gdg.backend.domain.document.entity.Document;
 import com.gdg.backend.domain.document.repository.DocumentRepository;
 import com.gdg.backend.domain.enums.OperationType;
@@ -30,7 +32,7 @@ public class OperationQueueProcessor {
     private final ConcurrentHashMap<Long, AtomicLong> documentVersions = new ConcurrentHashMap<>();
 
     // 문서 상태 추적 (Stringbuilder vs Document?)
-    private final ConcurrentHashMap<Long, StringBuilder> documentState = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, Document> documentCache = new ConcurrentHashMap<>();
 
     @PostConstruct
     public void startProcessing() {
@@ -52,11 +54,16 @@ public class OperationQueueProcessor {
         }).start();
     }
 
-    /** DB에 존재하는 Document version pool 추적 (인메모리라서 서버 껐다키면 사라지니까..) */
     @PostConstruct
-    public void fillDocumentVersionPool () {
+    public void postConstructJob() {
+        createTestDocument();
+        fillDocumentPool();
+        fillDocumentVersionPool();
+    }
+
+    /** (임시) 테스트 문서 초기화 -> 다른 PostConstruct 메소드보다 먼저 호출되어야 함 */
+    private void createTestDocument() {
         try {
-            // (임시) 테스트 문서 초기화
             final Long TEST_DOC_ID = 1L;
             Document testDoc = documentRepository.findById(TEST_DOC_ID)
                     .orElse(Document.builder()
@@ -68,10 +75,23 @@ public class OperationQueueProcessor {
             // (임시) 테스트 문서 operation 로그 초기화
             operationRepository.deleteByDocumentId(TEST_DOC_ID);
         } catch (Exception e) {
-            System.out.println("Exception while initializing OperationQueueProcessor");
+            System.out.println("Exception while creating test document");
             System.out.println(e.getMessage());
         }
+    }
 
+    /** DB에서 Document fetch해서 메모리로 가져옴 */
+//    @PostConstruct
+    public void fillDocumentPool() {
+        List<Document> documents = documentRepository.findAll();
+        for(Document doc : documents) {
+            documentCache.put(doc.getId(), doc);
+        }
+    }
+
+    /** DB에 존재하는 Document version pool 추적 (인메모리라서 서버 껐다키면 사라지니까..) */
+//    @PostConstruct
+    public void fillDocumentVersionPool () {
         List<Document> documents = documentRepository.findAll();
         documents.stream().forEach(document -> {
             if(document.getVersion() > documentVersions.getOrDefault(document.getId(), new AtomicLong(-1)).get())
@@ -80,8 +100,18 @@ public class OperationQueueProcessor {
         System.out.println("FILLED DOCUMENT POOL: " + documentVersions);
     }
 
-    private void processOperation(OperationRequestDto operation) {
-        // todo documentID 없는 경우 예외 처리
+    public void processOperation(OperationRequestDto operation) {
+        Long docId = operation.getDocumentId();
+        Long baseVersion = operation.getBaseVersion();
+        Long opPosition = operation.getPosition();
+
+        // documentID 없는 경우 예외처리 (documentState 확인 -> DB 확인)
+        Document doc = documentCache.computeIfAbsent(docId, id -> {
+            Document newDoc = documentRepository.findById(docId)
+                    .orElseThrow(() -> new GeneralHandler(ErrorCode.DOCUMENT_NOT_FOUND));
+            documentCache.put(id, newDoc); // 새로 만든 문서 캐싱
+            return newDoc;
+        });
 
         // operation 충돌 시 변환 처리
         // - operation의 baseVersion과 서버가 추적하는 version을 비교
@@ -94,11 +124,7 @@ public class OperationQueueProcessor {
         //   - 클라가 전부 version 11까지는 받았다 -> version 10 이상은 메모리에서 해제
         //   - queue로 구현해서, 클라이언트 ACK 받을 시 queue에서 옛날 event pop / 새로운 event 받을 시 queue에 push
         //   -> 클라이언트 ACK 추적 기능 구현 되면 (2)번으로 갈아타기
-
         try {
-            Long docId = operation.getDocumentId();
-            Long baseVersion = operation.getBaseVersion();
-            Long opPosition = operation.getPosition();
             List<Operation> concurrentOperations = operationRepository.findByDocumentIdAndVersionGreaterThan(docId, baseVersion);
             for (Operation concurrentOp : concurrentOperations) {
                 if (concurrentOp.getOperation().equals(OperationType.INSERT)
@@ -119,17 +145,25 @@ public class OperationQueueProcessor {
             response.setPosition(opPosition);
             response.setVersion(documentVersions.get(operation.getDocumentId()).incrementAndGet());
 
-            // todo 서버 문서 상태에도 변경사항 가함
-
+            // 문서 상태 갱신
+            int idx = Math.toIntExact(opPosition);
+            switch(operation.getOperation()) {
+                case INSERT -> {
+                    doc.getContentBuilder().insert(idx, operation.getInsertContent());
+                }
+                case DELETE -> {
+                    doc.getContentBuilder().delete(idx, operation.getDeleteLength());
+                }
+            }
 
             // Operation DB에 저장 && Document version 업데이트
             // - 동기 처리 vs 비동기 처리
-            // - todo 메모리에 Operation랑 Document 캐싱하기
+            // - todo 메모리에 Operation 캐싱하기
             //   - Operation은 큐 만들어서 캐싱하기 (클라이언트 ACK에 맞춰 갱신)
             //   - Document는 Map<UserID, Document> 형식 or Map<UserId, StringBuilder> 형식으로 저장?
             operationRepository.save(Operation.builder()
                     .operation(response.getOperation())
-                    .document(documentRepository.findById(docId).orElseThrow()) // todo
+                    .document(doc)
                     .position(response.getPosition())
                     .insertContent(response.getInsertContent())
                     .deleteLength(response.getDeleteLength())
