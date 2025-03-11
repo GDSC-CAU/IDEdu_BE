@@ -31,6 +31,8 @@ public enum ErrorCode implements BaseErrorCode {
     INVALID_CODE(HttpStatus.BAD_REQUEST, "CLASS4000", "유효하지 않은 코드입니다."),
     CLASS_ALREADY_EXIST(HttpStatus.BAD_REQUEST, "CLASS4001", "이미 존재하는 강의실명입니다."),
 
+    // 문서 관련 에러
+    DOCUMENT_NOT_FOUND(HttpStatus.BAD_REQUEST, "DOCUMENT4001", "문서를 찾을 수 없습니다."),
     ;
 
 
