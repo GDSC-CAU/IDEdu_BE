@@ -1,5 +1,6 @@
 package com.gdg.backend.domain.operation.service;
 
+import com.gdg.backend.common.annotation.TrackExecutionTime;
 import com.gdg.backend.domain.document.entity.Document;
 import com.gdg.backend.domain.document.repository.DocumentRepository;
 import com.gdg.backend.domain.enums.OperationType;
@@ -9,9 +10,13 @@ import com.gdg.backend.domain.operation.entity.Operation;
 import com.gdg.backend.domain.operation.repository.OperationRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
 
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -19,6 +24,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 
 /** OperationType 큐에서 주기적으로 이벤트를 가져와 처리하는 클래스 */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class OperationQueueProcessor {
@@ -80,6 +86,7 @@ public class OperationQueueProcessor {
         System.out.println("FILLED DOCUMENT POOL: " + documentVersions);
     }
 
+    @TrackExecutionTime
     private void processOperation(OperationRequestDto operation) {
         // todo documentID 없는 경우 예외 처리
 
@@ -96,6 +103,11 @@ public class OperationQueueProcessor {
         //   -> 클라이언트 ACK 추적 기능 구현 되면 (2)번으로 갈아타기
 
         try {
+            // 로그 출력
+            ZonedDateTime now = ZonedDateTime.now(ZoneId.of("Asia/Seoul"));
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
+            log.info("{} Received: {}", now.format(formatter), operation);
+
             Long docId = operation.getDocumentId();
             Long baseVersion = operation.getBaseVersion();
             Long opPosition = operation.getPosition();
@@ -139,9 +151,7 @@ public class OperationQueueProcessor {
             );
 
             // 로그 출력
-            System.out.println("Received: " + operation);
-            System.out.println("  수정된 위치: " + opPosition);
-            System.out.println("  수정된 버전: " + response.getVersion());
+           log.info("  수정된 Operation: {}", response);
 
             // 클라이언트에 브로드캐스트
             template.convertAndSend("/sub/edit/" + docId, response);
