@@ -12,9 +12,13 @@ import com.gdg.backend.domain.operation.repository.OperationRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -34,6 +38,8 @@ public class OperationQueueProcessor {
     // 문서 상태 캐싱
     // - todo 문서 많아지면 OutOfMemory 발생할 수도 있음 -> 추후에 LRU나 TTL 설정
     private final ConcurrentHashMap<Long, Document> documentCache = new ConcurrentHashMap<>();
+
+    private final Set<Long> dirtyDocuments = new HashSet<>(); // 변경된 Document 추적 (주기적으로 저장)
 
     @PostConstruct
     public void startProcessing() {
@@ -176,5 +182,25 @@ public class OperationQueueProcessor {
             System.out.println("Exception while handling operation " + operation);
             System.out.println(e.getMessage());
         }
+    }
+
+    /** 주기적으로 변경된 문서 저장 <br>
+     * - DB 쓰기는 네트워크 요청 + 디스크 I/O를 포함하므로 무거움
+     * - processOperation에서 제거해서 실행시간 줄여서 사용자 경험 증가 & 트랜잭션 부하 감소
+     * - 실시간성은 documentCache로 유지하고 저장은 백그라운드에서 주기적으로 진행
+     * */
+    @Scheduled(fixedRate = 10000) // 10초마다 실행
+    @Transactional
+    public void saveDirtyDocuments() {
+        for (Long docId : dirtyDocuments) {
+            Document doc = documentCache.get(docId);
+            if (doc != null) {
+                synchronized (doc) {
+                    doc.syncContentBuilder();
+                    documentRepository.save(doc);
+                }
+            }
+        }
+        dirtyDocuments.clear();
     }
 }
