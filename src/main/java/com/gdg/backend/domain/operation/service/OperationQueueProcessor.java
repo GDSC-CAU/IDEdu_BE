@@ -123,8 +123,8 @@ public class OperationQueueProcessor {
         // - 추후 전략 패턴 등으로 추상화
         if(operation.getOperation().equals(OperationType.SYNC)) {
             System.out.println("Received: SYNC");
-            String ret = doc.getContentBuilder().toString();
-            template.convertAndSend("/sub/edit/" + docId, ret);
+            String docContent = doc.getContentBuilder().toString();
+            template.convertAndSend("/sub/edit/" + docId, docContent);
             return;
         }
 
