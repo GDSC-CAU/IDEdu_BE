@@ -112,11 +112,21 @@ public class OperationQueueProcessor {
         Long baseVersion = operation.getBaseVersion();
         Long opPosition = operation.getPosition();
 
-        // documentID 없는 경우 예외처리 (documentCache 확인 -> DB 확인)
-        // - 캐시엔 없지만 DB에 있는 경우 캐시 업데이트
+        // documentID 없는 경우 예외처리 (캐시엔 없지만 DB에 있는 경우 캐시 업데이트)
         Document doc = documentCache.computeIfAbsent(docId, id -> documentRepository.findById(docId)
                 .orElseThrow(() -> new GeneralHandler(ErrorCode.DOCUMENT_NOT_FOUND))
         );
+
+        // SYNC인 경우 따로 처리
+        // - 현재 문서 상태 브로드캐스팅
+        // - version을 높이지 않음
+        // - 추후 전략 패턴 등으로 추상화
+        if(operation.getOperation().equals(OperationType.SYNC)) {
+            System.out.println("Received: SYNC");
+            String ret = doc.getContentBuilder().toString();
+            template.convertAndSend("/sub/edit/" + docId, ret);
+            return;
+        }
 
         // operation 충돌 시 변환 처리
         // - operation의 baseVersion과 서버가 추적하는 version을 비교
