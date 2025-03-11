@@ -4,5 +4,6 @@ public enum OperationType {
     INSERT,
     DELETE,
     UPDATE,
-    CURSOR
+    CURSOR,
+    SYNC
 }
