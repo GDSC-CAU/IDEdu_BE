@@ -193,6 +193,8 @@ public class OperationQueueProcessor {
     @Scheduled(fixedRate = 10000) // 10초마다 실행
     @Transactional
     public void saveDirtyDocuments() {
+        // 로그 출력
+        if(!dirtyDocuments.isEmpty()) System.out.println("SAVING DIRTY DOCUMENTS (id=" + dirtyDocuments + ")");
         for (Long docId : dirtyDocuments) {
             Document doc = documentCache.get(docId);
             if (doc != null) {
