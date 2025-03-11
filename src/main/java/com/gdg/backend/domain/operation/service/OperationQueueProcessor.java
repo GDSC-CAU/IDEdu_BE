@@ -2,6 +2,7 @@ package com.gdg.backend.domain.operation.service;
 
 import com.gdg.backend.common.exception.handler.GeneralHandler;
 import com.gdg.backend.common.response.status.ErrorCode;
+import com.gdg.backend.common.annotation.TrackExecutionTime;
 import com.gdg.backend.domain.document.entity.Document;
 import com.gdg.backend.domain.document.repository.DocumentRepository;
 import com.gdg.backend.domain.enums.OperationType;
@@ -11,11 +12,15 @@ import com.gdg.backend.domain.operation.entity.Operation;
 import com.gdg.backend.domain.operation.repository.OperationRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -25,6 +30,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 
 /** OperationType 큐에서 주기적으로 이벤트를 가져와 처리하는 클래스 */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class OperationQueueProcessor {
@@ -36,7 +42,7 @@ public class OperationQueueProcessor {
     private final ConcurrentHashMap<Long, AtomicLong> documentVersions = new ConcurrentHashMap<>();
 
     // 문서 상태 캐싱
-    // - todo 문서 많아지면 OutOfMemory 발생할 수도 있음 -> 추후에 LRU나 TTL 설정
+    // - todo 문서 많아지면 OutOfMemory 발생 가능 -> 추후에 LRU나 TTL 설정
     private final ConcurrentHashMap<Long, Document> documentCache = new ConcurrentHashMap<>();
 
     private final Set<Long> dirtyDocuments = new HashSet<>(); // 변경된 Document 추적 (주기적으로 저장)
@@ -50,12 +56,10 @@ public class OperationQueueProcessor {
                     OperationRequestDto operation = operationQueue.take();
                     processOperation(operation);
                 } catch (InterruptedException e) {
-                    System.out.println("QUEUE PROCESSOR THREAD INTERRUPTED!");
-                    System.out.println(e.getMessage());
+                    log.error("QUEUE PROCESSOR THREAD INTERRUPTED: {}", e.getMessage());
                     break;
                 } catch (Exception e) {
-                    System.out.println("QUEUE PROCESSOR UNCAUGHT EXCEPTION");
-                    System.out.println(e.getMessage());
+                    log.error("QUEUE PROCESSOR UNCAUGHT EXCEPTION: {}", e.getMessage());
                 }
             }
         }).start();
@@ -82,8 +86,7 @@ public class OperationQueueProcessor {
             // (임시) 테스트 문서 operation 로그 초기화
             operationRepository.deleteByDocumentId(TEST_DOC_ID);
         } catch (Exception e) {
-            System.out.println("Exception while creating test document");
-            System.out.println(e.getMessage());
+            log.error("Exception while creating test document: {}", e.getMessage());
         }
     }
 
@@ -104,9 +107,10 @@ public class OperationQueueProcessor {
             if(document.getVersion() > documentVersions.getOrDefault(document.getId(), new AtomicLong(-1)).get())
                 documentVersions.put(document.getId(), new AtomicLong(document.getVersion()));
         });
-        System.out.println("FILLED DOCUMENT POOL: " + documentVersions);
+        log.info("FILLED DOCUMENT POOL: {}", documentVersions);
     }
 
+    @TrackExecutionTime
     public void processOperation(OperationRequestDto operation) {
         Long docId = operation.getDocumentId();
         Long baseVersion = operation.getBaseVersion();
@@ -122,7 +126,7 @@ public class OperationQueueProcessor {
         // - version을 높이지 않음
         // - 추후 전략 패턴 등으로 추상화
         if(operation.getOperation().equals(OperationType.SYNC)) {
-            System.out.println("Received: SYNC");
+            log.info("Received: SYNC");
             String docContent = doc.getContentBuilder().toString();
             template.convertAndSend("/sub/edit/" + docId, docContent);
             return;
@@ -140,6 +144,10 @@ public class OperationQueueProcessor {
         //   - queue로 구현해서, 클라이언트 ACK 받을 시 queue에서 옛날 event pop / 새로운 event 받을 시 queue에 push
         //   -> 클라이언트 ACK 추적 기능 구현 되면 (2)번으로 갈아타기
         try {
+            // 로그 출력
+            ZonedDateTime now = ZonedDateTime.now(ZoneId.of("Asia/Seoul"));
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
+            log.info("{} Received: {}", now.format(formatter), operation);
             List<Operation> concurrentOperations = operationRepository.findByDocumentIdAndVersionGreaterThan(docId, baseVersion);
             for (Operation concurrentOp : concurrentOperations) {
                 if (concurrentOp.getOperation().equals(OperationType.INSERT) && concurrentOp.getPosition() < opPosition) {
@@ -183,15 +191,12 @@ public class OperationQueueProcessor {
             );
 
             // 로그 출력
-            System.out.println("Received: " + operation);
-            System.out.println("  수정된 위치: " + opPosition);
-            System.out.println("  수정된 버전: " + response.getVersion());
+           log.info("  수정된 Operation: {}", response);
 
             // 클라이언트에 브로드캐스트
             template.convertAndSend("/sub/edit/" + docId, response);
         } catch (Exception e) {
-            System.out.println("Exception while handling operation " + operation);
-            System.out.println(e.getMessage());
+            log.error("Exception while handling operation {}: {}", operation, e.getMessage());
         }
     }
 
