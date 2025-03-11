@@ -28,11 +28,6 @@ public class Document extends BaseTimeEntity {
     @Transient
     private StringBuilder contentBuilder;
 
-    @PostLoad // JPA가 DB에서 로드한 후 호출
-    public void initContentBuilder() {
-        this.contentBuilder = new StringBuilder(content != null ? content : "");
-    }
-
     public StringBuilder getContentBuilder() {
         if(contentBuilder == null) initContentBuilder();
         return contentBuilder;
@@ -40,5 +35,20 @@ public class Document extends BaseTimeEntity {
 
     public void syncContentBuilder() {
         if(contentBuilder != null) content = contentBuilder.toString();
+    }
+
+    // DB에서 로드 시 content -> contentBuilder 초기화
+    @PostLoad
+    public void initContentBuilder() {
+        this.contentBuilder = new StringBuilder(content != null ? content : "");
+    }
+
+    // INSERT, UPDATE 전 contentBuilder -> content 동기화
+    @PrePersist
+    @PreUpdate 
+    public void syncContentBeforeSave() {
+        if (contentBuilder != null) {
+            content = contentBuilder.toString();
+        }
     }
 }
