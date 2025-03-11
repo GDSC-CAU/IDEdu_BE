@@ -14,7 +14,8 @@ public class ExecutionTimeAspect {
 
     @Around("@annotation(com.gdg.backend.common.annotation.TrackExecutionTime) " +
             "|| @within(com.gdg.backend.common.annotation.TrackExecutionTime) " +
-            "|| execution(* org.springframework.data.jpa.repository.JpaRepository+.*(..))") // JPA Repository 포함
+            "|| execution(* org.springframework.data.jpa.repository.JpaRepository+.*(..))" + // JPA Repository 포함
+            "|| execution(* org.springframework.messaging.simp.SimpMessagingTemplate.convertAndSend(..))") // SimpMessagingTemplate 포함
     public Object trackExecutionTime(ProceedingJoinPoint joinPoint) throws Throwable {
         // 메서드 실행 전후로 실행시간 측정
         long start = System.currentTimeMillis();
