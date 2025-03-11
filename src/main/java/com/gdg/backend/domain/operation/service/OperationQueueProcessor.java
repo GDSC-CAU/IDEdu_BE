@@ -154,6 +154,7 @@ public class OperationQueueProcessor {
                 case INSERT -> doc.getContentBuilder().insert(idx, operation.getInsertContent());
                 case DELETE -> doc.getContentBuilder().delete(idx, operation.getDeleteLength());
             }
+            dirtyDocuments.add(docId);
             doc.syncContentBuilder();
 
             // Operation DB에 저장 && Document version 업데이트
