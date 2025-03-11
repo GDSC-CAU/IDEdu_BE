@@ -31,7 +31,8 @@ public class OperationQueueProcessor {
     private final SimpMessagingTemplate template;
     private final ConcurrentHashMap<Long, AtomicLong> documentVersions = new ConcurrentHashMap<>();
 
-    // 문서 상태 추적 (Stringbuilder vs Document?)
+    // 문서 상태 캐싱
+    // - todo 문서 많아지면 OutOfMemory 발생할 수도 있음 -> 추후에 LRU나 TTL 설정
     private final ConcurrentHashMap<Long, Document> documentCache = new ConcurrentHashMap<>();
 
     @PostConstruct
@@ -105,35 +106,31 @@ public class OperationQueueProcessor {
         Long baseVersion = operation.getBaseVersion();
         Long opPosition = operation.getPosition();
 
-        // documentID 없는 경우 예외처리 (documentState 확인 -> DB 확인)
-        Document doc = documentCache.computeIfAbsent(docId, id -> {
-            Document newDoc = documentRepository.findById(docId)
-                    .orElseThrow(() -> new GeneralHandler(ErrorCode.DOCUMENT_NOT_FOUND));
-            documentCache.put(id, newDoc); // 새로 만든 문서 캐싱
-            return newDoc;
-        });
+        // documentID 없는 경우 예외처리 (documentCache 확인 -> DB 확인)
+        // - 캐시엔 없지만 DB에 있는 경우 캐시 업데이트
+        Document doc = documentCache.computeIfAbsent(docId, id -> documentRepository.findById(docId)
+                .orElseThrow(() -> new GeneralHandler(ErrorCode.DOCUMENT_NOT_FOUND))
+        );
 
         // operation 충돌 시 변환 처리
         // - operation의 baseVersion과 서버가 추적하는 version을 비교
-        // - 차이나는 version만큼 position을 업데이트한다 (insert: position 증가 / delete: position 감소)
+        //   - 차이나는 version만큼 position을 업데이트한다 (insert: position 증가 / delete: position 감소)
         // - 이전 version의 이벤트 추적 방법
         // - (1) DB에서 가져온다 -> 구현이 쉬우니까 일단 이걸로 감
         //   - 대신 DB 가져오는 시간이 너무 오래 걸릴 거임
         // - (2) 메모리에 킵한다 -> 얼마나 킵할지 알 수 없음 (전부 킵하면 결국 OutOfMemory 뜰거임)
-        //   - 연결된 클라들이 어느 version까지 받았는지 추적할 수 있으면 메모리 할당량 조절 가능
+        //   - 연결된 클라들이 어느 version까지 받았는지 추적하면 메모리 할당량 조절 가능
         //   - 클라가 전부 version 11까지는 받았다 -> version 10 이상은 메모리에서 해제
         //   - queue로 구현해서, 클라이언트 ACK 받을 시 queue에서 옛날 event pop / 새로운 event 받을 시 queue에 push
         //   -> 클라이언트 ACK 추적 기능 구현 되면 (2)번으로 갈아타기
         try {
             List<Operation> concurrentOperations = operationRepository.findByDocumentIdAndVersionGreaterThan(docId, baseVersion);
             for (Operation concurrentOp : concurrentOperations) {
-                if (concurrentOp.getOperation().equals(OperationType.INSERT)
-                        && concurrentOp.getPosition() < opPosition) {
+                if (concurrentOp.getOperation().equals(OperationType.INSERT) && concurrentOp.getPosition() < opPosition) {
                     // 현재 operation보다 앞에 삽입한 경우
                     if(concurrentOp.getInsertContent() == null) continue;;
                     opPosition += concurrentOp.getInsertContent().length();
-                } else if (concurrentOp.getOperation().equals(OperationType.DELETE)
-                        && concurrentOp.getPosition() < opPosition) {
+                } else if (concurrentOp.getOperation().equals(OperationType.DELETE) && concurrentOp.getPosition() < opPosition) {
                     // 현재 operation보다 앞을 삭제한 경우
                     if(concurrentOp.getDeleteLength() == null) continue;;
                     opPosition -= concurrentOp.getDeleteLength();
@@ -148,19 +145,15 @@ public class OperationQueueProcessor {
             // 문서 상태 갱신
             int idx = Math.toIntExact(opPosition);
             switch(operation.getOperation()) {
-                case INSERT -> {
-                    doc.getContentBuilder().insert(idx, operation.getInsertContent());
-                }
-                case DELETE -> {
-                    doc.getContentBuilder().delete(idx, operation.getDeleteLength());
-                }
+                case INSERT -> doc.getContentBuilder().insert(idx, operation.getInsertContent());
+                case DELETE -> doc.getContentBuilder().delete(idx, operation.getDeleteLength());
             }
+            doc.syncContentBuilder();
 
             // Operation DB에 저장 && Document version 업데이트
             // - 동기 처리 vs 비동기 처리
             // - todo 메모리에 Operation 캐싱하기
-            //   - Operation은 큐 만들어서 캐싱하기 (클라이언트 ACK에 맞춰 갱신)
-            //   - Document는 Map<UserID, Document> 형식 or Map<UserId, StringBuilder> 형식으로 저장?
+            //   - Operation 큐 만들어서 캐싱하기 (클라이언트 ACK에 맞춰 갱신)
             operationRepository.save(Operation.builder()
                     .operation(response.getOperation())
                     .document(doc)
