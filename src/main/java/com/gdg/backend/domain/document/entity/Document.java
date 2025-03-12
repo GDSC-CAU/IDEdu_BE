@@ -51,4 +51,9 @@ public class Document extends BaseTimeEntity {
             content = contentBuilder.toString();
         }
     }
+
+    @Override
+    public String toString() {
+        return String.format("DOCUMENT(id=%d, version=%d", id, version) + "content=" + content + ")";
+    }
 }

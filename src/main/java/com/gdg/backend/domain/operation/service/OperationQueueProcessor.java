@@ -215,8 +215,8 @@ public class OperationQueueProcessor {
             Document doc = documentCache.get(docId);
             if (doc != null) {
                 synchronized (doc) {
-                    log.info(" - DOCUMENT {}: {}", docId, doc.getContentBuilder().toString());
                     doc.syncContentBuilder();
+                    log.info("- SAVING DOCUMENT: {}", doc);
                     documentRepository.save(doc);
                 }
             }
