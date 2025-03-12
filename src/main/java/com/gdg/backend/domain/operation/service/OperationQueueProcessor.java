@@ -171,7 +171,7 @@ public class OperationQueueProcessor {
             int idx = Math.toIntExact(opPosition);
             switch(operation.getOperation()) {
                 case INSERT -> doc.getContentBuilder().insert(idx, operation.getInsertContent());
-                case DELETE -> doc.getContentBuilder().delete(idx - operation.getDeleteLength(), idx);
+                case DELETE -> doc.getContentBuilder().delete(idx - operation.getDeleteLength() + 1, idx + 1);
             }
             log.info("current content: {}", doc.getContentBuilder().toString());
             dirtyDocuments.add(docId);
@@ -210,7 +210,7 @@ public class OperationQueueProcessor {
     @Transactional
     public void saveDirtyDocuments() {
         // 로그 출력
-        log.info("SAVING DIRTY DOCUMENTS (id=" + dirtyDocuments + ")");
+        if(!dirtyDocuments.isEmpty()) log.info("SAVING DIRTY DOCUMENTS (id=" + dirtyDocuments + ")");
         for (Long docId : dirtyDocuments) {
             Document doc = documentCache.get(docId);
             if (doc != null) {
