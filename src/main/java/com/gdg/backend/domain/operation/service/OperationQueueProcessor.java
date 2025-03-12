@@ -176,7 +176,6 @@ public class OperationQueueProcessor {
                 case DELETE -> doc.getContentBuilder().delete(idx, operation.getDeleteLength());
             }
             dirtyDocuments.add(docId);
-            doc.syncContentBuilder();
 
             // Operation DB에 저장 && Document version 업데이트
             // - 동기 처리 vs 비동기 처리
