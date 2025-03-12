@@ -171,7 +171,7 @@ public class OperationQueueProcessor {
             int idx = Math.toIntExact(opPosition);
             switch(operation.getOperation()) {
                 case INSERT -> doc.getContentBuilder().insert(idx, operation.getInsertContent());
-                case DELETE -> doc.getContentBuilder().delete(idx, operation.getDeleteLength());
+                case DELETE -> doc.getContentBuilder().delete(idx - operation.getDeleteLength(), idx);
             }
             log.info("current content: {}", doc.getContentBuilder().toString());
             dirtyDocuments.add(docId);
