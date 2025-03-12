@@ -40,22 +40,13 @@ public class Document extends BaseTimeEntity {
     // DB에서 로드 시 content -> contentBuilder 초기화
     @PostLoad
     public void initContentBuilder() {
-        this.contentBuilder = new StringBuilder(content != null ? content : "");
-    }
-
-    // INSERT, UPDATE 전 contentBuilder -> content 동기화
-    @PrePersist
-    @PreUpdate 
-    public void syncContentBeforeSave() {
-        System.out.println("SyncContentBeforeSave(): contentBuilder=" + contentBuilder + " content=" + content);
-        if (contentBuilder != null) {
-            content = contentBuilder.toString();
-            System.out.println("SyncContentBeforeSave(): contentBuilder=" + contentBuilder.toString() + " content=" + content);
-        }
+        if(content == null) content = "";
+        this.contentBuilder = new StringBuilder(content);
+        System.out.println("DOCUMENT " + id + " ContentBuilder INITIATED (value=" + contentBuilder + ")");
     }
 
     @Override
     public String toString() {
-        return String.format("DOCUMENT(id=%d, version=%d, ", id, version) + "content=" + content + ")";
+        return String.format("DOCUMENT(id=%d, version=%d, contentBuilder=%s, ", id, version, contentBuilder.toString()) + "content=" + content + ")";
     }
 }

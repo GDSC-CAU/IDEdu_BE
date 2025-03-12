@@ -169,9 +169,12 @@ public class OperationQueueProcessor {
 
             // 문서 상태 갱신
             int idx = Math.toIntExact(opPosition);
-            switch(operation.getOperation()) {
-                case INSERT -> doc.getContentBuilder().insert(idx, operation.getInsertContent());
-                case DELETE -> doc.getContentBuilder().delete(idx - operation.getDeleteLength() + 1, idx + 1);
+            synchronized (doc) {
+                switch (operation.getOperation()) {
+                    case INSERT -> doc.getContentBuilder().insert(idx, operation.getInsertContent());
+                    case DELETE -> doc.getContentBuilder().delete(idx - operation.getDeleteLength() + 1, idx + 1);
+                }
+                doc.setVersion(documentVersions.get(operation.getDocumentId()).get());
             }
             log.info("current content: {}", doc.getContentBuilder().toString());
             dirtyDocuments.add(docId);
@@ -203,21 +206,25 @@ public class OperationQueueProcessor {
 
     /** 주기적으로 변경된 문서 저장 <br>
      * - DB 쓰기는 네트워크 요청 + 디스크 I/O를 포함하므로 무거움
-     * - processOperation에서 제거해서 실행시간 줄여서 사용자 경험 증가 & 트랜잭션 부하 감소
+     * - DB 작업은 processOperation에서 최대한 제거해서 실행시간 줄여서 지연시간 & 트랜잭션 부하 감소
      * - 실시간성은 documentCache로 유지하고 저장은 백그라운드에서 주기적으로 진행
      * */
     @Scheduled(fixedRate = 10000) // 10초마다 실행
+    public void scheduleSavingDirtyDocuments() {
+        if(!dirtyDocuments.isEmpty()) {
+            log.info("SAVING DIRTY DOCUMENTS (id=" + dirtyDocuments + ")");
+            saveDirtyDocuments();
+        }
+    }
+
     @Transactional
     public void saveDirtyDocuments() {
-        // 로그 출력
-        if(!dirtyDocuments.isEmpty()) log.info("SAVING DIRTY DOCUMENTS (id=" + dirtyDocuments + ")");
         for (Long docId : dirtyDocuments) {
-            Document doc = documentCache.get(docId);
-            if (doc != null) {
-                synchronized (doc) {
-                    doc.syncContentBuilder();
-                    log.info("- SAVING DOCUMENT: {}", doc);
-                    documentRepository.save(doc);
+            Document cachedDoc = documentCache.get(docId);
+            if (cachedDoc != null) {
+                synchronized (cachedDoc) {
+                    cachedDoc.syncContentBuilder();
+                    documentRepository.save(cachedDoc);
                 }
             }
         }
