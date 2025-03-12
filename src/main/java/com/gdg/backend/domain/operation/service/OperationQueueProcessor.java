@@ -169,9 +169,11 @@ public class OperationQueueProcessor {
 
             // 문서 상태 갱신
             int idx = Math.toIntExact(opPosition);
-            switch(operation.getOperation()) {
-                case INSERT -> doc.getContentBuilder().insert(idx, operation.getInsertContent());
-                case DELETE -> doc.getContentBuilder().delete(idx - operation.getDeleteLength() + 1, idx + 1);
+            synchronized (doc) {
+                switch (operation.getOperation()) {
+                    case INSERT -> doc.getContentBuilder().insert(idx, operation.getInsertContent());
+                    case DELETE -> doc.getContentBuilder().delete(idx - operation.getDeleteLength() + 1, idx + 1);
+                }
             }
             log.info("current content: {}", doc.getContentBuilder().toString());
             dirtyDocuments.add(docId);
@@ -215,9 +217,11 @@ public class OperationQueueProcessor {
             Document doc = documentCache.get(docId);
             if (doc != null) {
                 synchronized (doc) {
-                    doc.syncContentBuilder();
                     log.info("- SAVING DOCUMENT: {}", doc);
+                    doc.syncContentBuilder();
+                    log.info("- AFTER SYNC: {}", doc);
                     documentRepository.save(doc);
+                    log.info("- AFTER SAVE: {}", doc);
                 }
             }
         }

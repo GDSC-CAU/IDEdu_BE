@@ -39,8 +39,10 @@ public class Document extends BaseTimeEntity {
 
     // DB에서 로드 시 content -> contentBuilder 초기화
     @PostLoad
+    @PostPersist
     public void initContentBuilder() {
         this.contentBuilder = new StringBuilder(content != null ? content : "");
+        System.out.println("DOCUMENT " + id + " CONTENTBUILDER INITIATED (value=" + contentBuilder + ")");
     }
 
     // INSERT, UPDATE 전 contentBuilder -> content 동기화
@@ -56,6 +58,6 @@ public class Document extends BaseTimeEntity {
 
     @Override
     public String toString() {
-        return String.format("DOCUMENT(id=%d, version=%d, ", id, version) + "content=" + content + ")";
+        return String.format("DOCUMENT(id=%d, version=%d, contentBuilder=%s", id, version, contentBuilder.toString()) + "content=" + content + ")";
     }
 }
