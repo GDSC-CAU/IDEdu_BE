@@ -56,10 +56,10 @@ public class OperationQueueProcessor {
                     OperationRequestDto operation = operationQueue.take();
                     processOperation(operation);
                 } catch (InterruptedException e) {
-                    log.error("QUEUE PROCESSOR THREAD INTERRUPTED: {}", e.getMessage());
+                    log.error("QUEUE PROCESSOR THREAD INTERRUPTED: {}", e.getMessage(), e);
                     break;
                 } catch (Exception e) {
-                    log.error("QUEUE PROCESSOR UNCAUGHT EXCEPTION: {}", e.getMessage());
+                    log.error("QUEUE PROCESSOR UNCAUGHT EXCEPTION: {}", e.getMessage(), e);
                 }
             }
         }).start();
@@ -196,7 +196,7 @@ public class OperationQueueProcessor {
             // 클라이언트에 브로드캐스트
             template.convertAndSend("/sub/edit/" + docId, response);
         } catch (Exception e) {
-            log.error("Exception while handling operation {}: {}", operation, e.getMessage());
+            log.error("Exception while handling operation {} -> {}", operation, e.getMessage(), e);
         }
     }
 
