@@ -22,5 +22,4 @@ public class Attendance extends BaseTimeEntity {
     @JoinColumn(name = "class_id")
     private Course course;
 
-
 }

@@ -12,6 +12,7 @@ public class CourseInfo {
     public static class TeacherCourseInfo {
         private String courseCode;
         private String courseName;
+        private Long courseId;
     }
 
     @Getter
@@ -20,5 +21,6 @@ public class CourseInfo {
     public static class StudentCourseInfo {
         private String teacherName;
         private String courseName;
+        private Long courseId;
     }
 }

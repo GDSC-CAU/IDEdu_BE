@@ -118,7 +118,7 @@ public class MemberServiceImpl implements MemberService {
             List<CourseInfo.StudentCourseInfo> studentCourseInfos = new java.util.ArrayList<>(List.of());
 
             invitations.forEach(invitation -> {
-                studentCourseInfos.add(new CourseInfo.StudentCourseInfo(invitation.getClassroom().getName(), invitation.getClassroom().getTeacher().getUsername()));
+                studentCourseInfos.add(new CourseInfo.StudentCourseInfo(invitation.getClassroom().getName(), invitation.getClassroom().getTeacher().getUsername(), invitation.getClassroom().getId()));
             });
 
             return new DashBoardInfoDto.StudentDashBoardInfoDto(member.getUsername(), studentCourseInfos);
@@ -130,7 +130,7 @@ public class MemberServiceImpl implements MemberService {
             List<CourseInfo.TeacherCourseInfo> teacherCourseInfos = new java.util.ArrayList<>(List.of());
 
             classrooms.forEach(classroom -> {
-                teacherCourseInfos.add(new CourseInfo.TeacherCourseInfo(classroom.getInvitationCode(), classroom.getName()));
+                teacherCourseInfos.add(new CourseInfo.TeacherCourseInfo(classroom.getInvitationCode(), classroom.getName(), classroom.getId()));
             });
 
             return new DashBoardInfoDto.TeacherDashBoardInfoDto(member.getUsername(), teacherCourseInfos);

@@ -9,6 +9,7 @@ import lombok.*;
 @AllArgsConstructor
 @NoArgsConstructor
 public class BuildRequest {
+    private String ideId;
     private String language;
     private String code;
 }

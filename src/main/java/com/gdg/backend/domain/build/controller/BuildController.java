@@ -16,7 +16,6 @@ public class BuildController {
     // 클라이언트가 코드 실행 요청을 보냈을 때
     @MessageMapping("/compile")
     public void compileCode(BuildRequest request) {
-        
         // Docker 컨테이너에서 실행
         codeExecutionService.runCode(request);
     }
