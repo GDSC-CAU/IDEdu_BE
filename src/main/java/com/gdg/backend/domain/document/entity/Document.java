@@ -47,13 +47,15 @@ public class Document extends BaseTimeEntity {
     @PrePersist
     @PreUpdate 
     public void syncContentBeforeSave() {
+        System.out.println("SyncContentBeforeSave(): contentBuilder=" + contentBuilder + " content=" + content);
         if (contentBuilder != null) {
             content = contentBuilder.toString();
+            System.out.println("SyncContentBeforeSave(): contentBuilder=" + contentBuilder.toString() + " content=" + content);
         }
     }
 
     @Override
     public String toString() {
-        return String.format("DOCUMENT(id=%d, version=%d", id, version) + "content=" + content + ")";
+        return String.format("DOCUMENT(id=%d, version=%d, ", id, version) + "content=" + content + ")";
     }
 }
