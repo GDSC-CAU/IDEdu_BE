@@ -6,7 +6,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.CrossOrigin;
 
 import java.util.concurrent.BlockingQueue;
 
@@ -26,7 +25,7 @@ public class WebsocketEventController {
 
     /** 클라이언트의 문서 편집 요청을 메시지 큐에 push */
     @MessageMapping("/edit")
-    public void receiveEditOperation(@Valid OperationRequestDto operation) throws InterruptedException {
+    public void handleEditOperation(@Valid OperationRequestDto operation) throws InterruptedException {
         operationQueue.put(operation);
         log.info(operation + " put to queue");
         template.convertAndSend("/sub/ack/" + operation.getDocumentId(), "ACK");
