@@ -22,6 +22,7 @@ import com.gdg.backend.domain.member.repository.StudentRepository;
 import com.gdg.backend.domain.notice.entity.Notice;
 import com.gdg.backend.domain.notice.repository.NoticeRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +35,7 @@ import static com.gdg.backend.common.util.RandomCodeGenerator.getRandomCode;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ClassroomServiceImpl implements ClassroomService {
 
     private final ClassroomRepository classroomRepository;
@@ -114,9 +116,10 @@ public class ClassroomServiceImpl implements ClassroomService {
         IdeMember ideTeacher = ideMemberRepository.findByMember(classroom.getTeacher()).orElseThrow(()-> new GeneralHandler(ErrorCode.MEMBER_NOT_FOUND));
         classroomResponseDto.setTeacherIdeId(ideTeacher.getDocument().getId());
 
+
         // 학생의 ide 가져오기
         if(member instanceof Student) {
-            classroomResponseDto.setStudentIdeId(ideMember.getId());
+            classroomResponseDto.setStudentIdeId(ideMember.getDocument().getId());
         }
 
         // 클래스명 가져오기
