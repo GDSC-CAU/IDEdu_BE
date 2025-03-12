@@ -56,10 +56,10 @@ public class OperationQueueProcessor {
                     OperationRequestDto operation = operationQueue.take();
                     processOperation(operation);
                 } catch (InterruptedException e) {
-                    log.error("QUEUE PROCESSOR THREAD INTERRUPTED: {}", e.getMessage());
+                    log.error("QUEUE PROCESSOR THREAD INTERRUPTED: {}", e.getMessage(), e);
                     break;
                 } catch (Exception e) {
-                    log.error("QUEUE PROCESSOR UNCAUGHT EXCEPTION: {}", e.getMessage());
+                    log.error("QUEUE PROCESSOR UNCAUGHT EXCEPTION: {}", e.getMessage(), e);
                 }
             }
         }).start();
@@ -85,6 +85,8 @@ public class OperationQueueProcessor {
             documentRepository.save(testDoc);
             // (임시) 테스트 문서 operation 로그 초기화
             operationRepository.deleteByDocumentId(TEST_DOC_ID);
+
+            log.info("CREATED TEST DOCUMENT: {}", testDoc);
         } catch (Exception e) {
             log.error("Exception while creating test document: {}", e.getMessage());
         }
@@ -97,6 +99,7 @@ public class OperationQueueProcessor {
         for(Document doc : documents) {
             documentCache.put(doc.getId(), doc);
         }
+        log.info("FILLED DOCUMENT POOL : {}", documentCache);
     }
 
     /** DB에 존재하는 Document version pool 추적 (인메모리라서 서버 껐다키면 사라지니까..) */
@@ -146,7 +149,7 @@ public class OperationQueueProcessor {
         try {
             // 로그 출력
             ZonedDateTime now = ZonedDateTime.now(ZoneId.of("Asia/Seoul"));
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
             log.info("{} Received: {}", now.format(formatter), operation);
             List<Operation> concurrentOperations = operationRepository.findByDocumentIdAndVersionGreaterThan(docId, baseVersion);
             for (Operation concurrentOp : concurrentOperations) {
@@ -173,7 +176,6 @@ public class OperationQueueProcessor {
                 case DELETE -> doc.getContentBuilder().delete(idx, operation.getDeleteLength());
             }
             dirtyDocuments.add(docId);
-            doc.syncContentBuilder();
 
             // Operation DB에 저장 && Document version 업데이트
             // - 동기 처리 vs 비동기 처리
@@ -196,7 +198,7 @@ public class OperationQueueProcessor {
             // 클라이언트에 브로드캐스트
             template.convertAndSend("/sub/edit/" + docId, response);
         } catch (Exception e) {
-            log.error("Exception while handling operation {}: {}", operation, e.getMessage());
+            log.error("Exception while handling operation {} -> {}", operation, e.getMessage(), e);
         }
     }
 
@@ -209,7 +211,7 @@ public class OperationQueueProcessor {
     @Transactional
     public void saveDirtyDocuments() {
         // 로그 출력
-        if(!dirtyDocuments.isEmpty()) System.out.println("SAVING DIRTY DOCUMENTS (id=" + dirtyDocuments + ")");
+        if(!dirtyDocuments.isEmpty()) log.info("SAVING DIRTY DOCUMENTS (id=" + dirtyDocuments + ")");
         for (Long docId : dirtyDocuments) {
             Document doc = documentCache.get(docId);
             if (doc != null) {
