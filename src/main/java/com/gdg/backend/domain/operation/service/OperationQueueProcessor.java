@@ -148,9 +148,7 @@ public class OperationQueueProcessor {
         //   -> 클라이언트 ACK 추적 기능 구현 되면 (2)번으로 갈아타기
         try {
             // 로그 출력
-            ZonedDateTime now = ZonedDateTime.now(ZoneId.of("Asia/Seoul"));
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
-            log.info("{} Received: {}", now.format(formatter), operation);
+            log.info("Received: {}", operation);
             List<Operation> concurrentOperations = operationRepository.findByDocumentIdAndVersionGreaterThan(docId, baseVersion);
             for (Operation concurrentOp : concurrentOperations) {
                 if (concurrentOp.getOperation().equals(OperationType.INSERT) && concurrentOp.getPosition() < opPosition) {
@@ -175,6 +173,7 @@ public class OperationQueueProcessor {
                 case INSERT -> doc.getContentBuilder().insert(idx, operation.getInsertContent());
                 case DELETE -> doc.getContentBuilder().delete(idx, operation.getDeleteLength());
             }
+            log.info("current content: {}", doc.getContentBuilder().toString());
             dirtyDocuments.add(docId);
 
             // Operation DB에 저장 && Document version 업데이트
@@ -211,11 +210,12 @@ public class OperationQueueProcessor {
     @Transactional
     public void saveDirtyDocuments() {
         // 로그 출력
-        if(!dirtyDocuments.isEmpty()) log.info("SAVING DIRTY DOCUMENTS (id=" + dirtyDocuments + ")");
+        log.info("SAVING DIRTY DOCUMENTS (id=" + dirtyDocuments + ")");
         for (Long docId : dirtyDocuments) {
             Document doc = documentCache.get(docId);
             if (doc != null) {
                 synchronized (doc) {
+                    log.info(" - DOCUMENT {}: {}", docId, doc.getContentBuilder().toString());
                     doc.syncContentBuilder();
                     documentRepository.save(doc);
                 }
