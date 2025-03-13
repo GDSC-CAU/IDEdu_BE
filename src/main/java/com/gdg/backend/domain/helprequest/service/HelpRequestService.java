@@ -26,7 +26,7 @@ public class HelpRequestService {
         IdeMember ideMember = ideMemberRepository.findByClassroomIdAndMemberIdFetchJoinDocument(classroomId, helpRequest.getUserId())
                 .orElseThrow(() -> new IllegalArgumentException("해당 회원은 해당 강의실에 속하지 않습니다. (userId=" + helpRequest.getUserId() + ", id=" + classroomId + ")"));
         HelpRequestResponseDto response = new HelpRequestResponseDto(helpRequest.getUserId(), ideMember.getDocument().getId());
-        log.info("broadcast help to pub/help/{}: {}", classroomId, response);
+        log.info("broadcast help to 'sub/help/{}': {}", classroomId, response);
         template.convertAndSend("/sub/help/" + classroomId, response);
     }
 }
