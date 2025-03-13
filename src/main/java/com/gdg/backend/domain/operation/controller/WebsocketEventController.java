@@ -30,6 +30,4 @@ public class WebsocketEventController {
         log.info(operation + " put to queue");
         template.convertAndSend("/sub/ack/" + operation.getDocumentId(), "ACK");
     }
-
-
 }
