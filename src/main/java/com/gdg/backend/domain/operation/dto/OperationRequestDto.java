@@ -21,7 +21,7 @@ public class OperationRequestDto {
 
     Integer deleteLength;
 
-    @NotNull(message = "position은 null일 수 없습니다.")
+//    @NotNull(message = "position은 null일 수 없습니다.")
     Long position;
 
     Long baseVersion;
