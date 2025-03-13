@@ -1,17 +1,16 @@
-package com.gdg.backend.domain.build.entity;
+package com.gdg.backend.domain.mapping;
 
-import com.gdg.backend.common.entity.BaseTimeEntity;
 import com.gdg.backend.domain.classroom.entity.Classroom;
 import com.gdg.backend.domain.document.entity.Document;
 import com.gdg.backend.domain.member.entity.Member;
 import jakarta.persistence.*;
 import lombok.Getter;
-import lombok.Setter;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Getter
-@Setter
-public class Build extends BaseTimeEntity {
+@NoArgsConstructor
+public class IdeMember {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -29,6 +28,9 @@ public class Build extends BaseTimeEntity {
     @JoinColumn(name = "classroom_id")
     private Classroom classroom;
 
-    private String result;
+    public IdeMember(Document document, Member member, Classroom classroom) {
+        this.document = document;
+        this.member = member;
+        this.classroom = classroom;
+    }
 }
-
