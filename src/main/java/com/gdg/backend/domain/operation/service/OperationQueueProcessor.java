@@ -134,6 +134,9 @@ public class OperationQueueProcessor {
             template.convertAndSend("/sub/edit/" + docId, docContent);
             return;
         }
+        
+        // 추후 수정
+        if(opPosition == null) throw new IllegalStateException("opPosition은 null일 수 없습니다.");
 
         // operation 충돌 시 변환 처리
         // - operation의 baseVersion과 서버가 추적하는 version을 비교
