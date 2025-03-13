@@ -8,6 +8,7 @@ import com.gdg.backend.domain.document.repository.DocumentRepository;
 import com.gdg.backend.domain.enums.OperationType;
 import com.gdg.backend.domain.operation.dto.OperationRequestDto;
 import com.gdg.backend.domain.operation.dto.OperationResponseDto;
+import com.gdg.backend.domain.operation.dto.SyncOperationResponseDto;
 import com.gdg.backend.domain.operation.entity.Operation;
 import com.gdg.backend.domain.operation.repository.OperationRepository;
 import jakarta.annotation.PostConstruct;
@@ -131,7 +132,8 @@ public class OperationQueueProcessor {
         if(operation.getOperation().equals(OperationType.SYNC)) {
             log.info("Received: SYNC");
             String docContent = doc.getContentBuilder().toString();
-            template.convertAndSend("/sub/edit/" + docId, docContent);
+            SyncOperationResponseDto response = new SyncOperationResponseDto(OperationType.SYNC, operation.getUserId(), documentVersions.get(docId).get(), docContent);
+            template.convertAndSend("/sub/edit/" + docId, response);
             return;
         }
         
