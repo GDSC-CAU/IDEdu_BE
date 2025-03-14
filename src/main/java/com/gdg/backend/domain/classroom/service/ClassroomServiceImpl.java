@@ -109,13 +109,17 @@ public class ClassroomServiceImpl implements ClassroomService {
 
 
         ClassroomDto.ClassroomResponseDto classroomResponseDto = new ClassroomDto.ClassroomResponseDto();
-        IdeMember ideMember = ideMemberRepository.findByMember(member).orElseThrow(()-> new GeneralHandler(ErrorCode.MEMBER_NOT_FOUND));
-        Classroom classroom = ideMember.getClassroom();
+
+        // 강의실 정보 찾기
+        Classroom classroom = classroomRepository.findById(classroomId).orElseThrow(()-> new GeneralHandler(ErrorCode.CLASSROOM_NOT_FOUND));
+
+        // 해당 ide id 찾기
+        IdeMember ideMember = ideMemberRepository.findByMemberAndClassroom(member, classroom).orElseThrow(()-> new GeneralHandler(ErrorCode.CLASSROOM_NOT_FOUND));
 
         // 선생님의 ide 가져오기
-        IdeMember ideTeacher = ideMemberRepository.findByMember(classroom.getTeacher()).orElseThrow(()-> new GeneralHandler(ErrorCode.MEMBER_NOT_FOUND));
-        classroomResponseDto.setTeacherIdeId(ideTeacher.getDocument().getId());
+        IdeMember ideTeacher = ideMemberRepository.findByMemberAndClassroom(classroom.getTeacher(), classroom).orElseThrow(()-> new GeneralHandler(ErrorCode.CLASSROOM_NOT_FOUND));
 
+        classroomResponseDto.setTeacherIdeId(ideTeacher.getDocument().getId());
 
         // 학생의 ide 가져오기
         if(member instanceof Student) {
