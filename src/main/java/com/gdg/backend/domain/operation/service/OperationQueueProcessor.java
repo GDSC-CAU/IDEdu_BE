@@ -170,7 +170,9 @@ public class OperationQueueProcessor {
                 else if (concurrentOp.getOperation().equals(OperationType.DELETE)) {
                     if(concurrentOp.getDeleteLength() == null) continue;
                     // 이미 삭제한 문자를 삭제하려는 경우 작업 진행 X
-                    if(operation.getOperation().equals(OperationType.DELETE) && concurrentOp.getPosition().equals(opPosition)) {
+                    long[] deleteRange = new long[]{concurrentOp.getPosition() - concurrentOp.getDeleteLength() + 1, concurrentOp.getPosition()};
+                    if(operation.getOperation().equals(OperationType.DELETE)
+                    && deleteRange[0] <= opPosition && opPosition <= deleteRange[1]) {
                         doDelete = false;
                         break;
                     }
