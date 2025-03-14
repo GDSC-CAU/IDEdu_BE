@@ -21,9 +21,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -158,7 +155,7 @@ public class OperationQueueProcessor {
         try {
             // 로그 출력
             log.info("[OPERATION]: {}", operation);
-            List<Operation> concurrentOperations = operationRepository.findByDocumentIdAndVersionGreaterThan(docId, baseVersion);
+            List<Operation> concurrentOperations = operationRepository.findByDocumentIdAndVersionGreaterThanFetchJoin(docId, baseVersion);
             for (Operation concurrentOp : concurrentOperations) {
                 // 본인의 Operation인 경우 충돌 처리 X
                 if (Objects.equals(concurrentOp.getMember().getId(), operation.getUserId()))
