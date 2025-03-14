@@ -149,12 +149,28 @@ public class OperationQueueProcessor {
                     if(concurrentOp.getDeleteLength() == null) continue;
                     // 이미 삭제한 문자를 삭제하려는 경우 작업 진행 X
                     long[] deleteRange = new long[]{concurrentOp.getPosition() - concurrentOp.getDeleteLength() + 1, concurrentOp.getPosition()};
-                    if(operation.getOperation().equals(OperationType.DELETE)
-                    && deleteRange[0] <= opPosition && opPosition <= deleteRange[1]) {
+                    long[] currentDeleteRange = new long[]{opPosition - operation.getDeleteLength() + 1, opPosition};
+                    // 범위가 완전히 겹치는 경우 Operation을 Drop한다. (DB 저장이나 버전 업데이트도 진행하지 않음)
+                    if (operation.getOperation().equals(OperationType.DELETE) && 
+                            deleteRange[0] <= currentDeleteRange[0] && currentDeleteRange[1] <= deleteRange[1]) {
+                        log.info("- DROP OPERATION (index {} already deleted", opPosition);
                         return;
                     }
-                    // 현재 operation보다 앞을 삭제한 경우 pos 감소 (등호 미포함)
-                    if(concurrentOp.getPosition() < opPosition) opPosition -= concurrentOp.getDeleteLength();
+                    // 범위가 부분적으로 겹치고 현재 Operation이 더 앞 쪽인 경우, pos와 deleteLength를 감소시킨다.
+                    else if (operation.getOperation().equals(OperationType.DELETE) &&
+                            currentDeleteRange[0] < deleteRange[0] && currentDeleteRange[1] <= deleteRange[1]) {
+                        long delta = currentDeleteRange[1] - deleteRange[0];
+                        opPosition -= delta;
+                        operation.setDeleteLength((int) (operation.getDeleteLength() - delta));
+                    }
+                    // 범위가 부분적으로 겹치고 현재 Operation이 더 뒤 쪽인 경우, deleteLength만을 감소시킨다.
+                    else if (operation.getOperation().equals(OperationType.DELETE) &&
+                            deleteRange[0] <= currentDeleteRange[0] && deleteRange[1] < currentDeleteRange[1]) {
+                        long delta = deleteRange[1] - currentDeleteRange[0];
+                        operation.setDeleteLength((int) (operation.getDeleteLength() - delta));
+                    }
+                    // 범위가 겹치지 않고 현재 operation보다 앞을 삭제한 경우 pos 감소 (등호 미포함)
+                    else if(concurrentOp.getPosition() < opPosition) opPosition -= concurrentOp.getDeleteLength();
                 }
             }
 
