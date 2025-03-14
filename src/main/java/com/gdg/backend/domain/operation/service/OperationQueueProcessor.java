@@ -24,6 +24,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -130,7 +131,7 @@ public class OperationQueueProcessor {
         // - version을 높이지 않음
         // - 추후 전략 패턴 등으로 추상화
         if(operation.getOperation().equals(OperationType.SYNC)) {
-            log.info("Received: SYNC");
+            log.info("[OPERATION] SYNC");
             String docContent = doc.getContentBuilder().toString();
             SyncOperationResponseDto response = new SyncOperationResponseDto(OperationType.SYNC, operation.getUserId(), documentVersions.get(docId).get(), docContent);
             template.convertAndSend("/sub/edit/" + docId, response);
@@ -153,16 +154,19 @@ public class OperationQueueProcessor {
         //   -> 클라이언트 ACK 추적 기능 구현 되면 (2)번으로 갈아타기
         try {
             // 로그 출력
-            log.info("Received: {}", operation);
+            log.info("[OPERATION]: {}", operation);
             List<Operation> concurrentOperations = operationRepository.findByDocumentIdAndVersionGreaterThan(docId, baseVersion);
             for (Operation concurrentOp : concurrentOperations) {
+                // 본인의 Operation인 경우 충돌 처리 X
+                if (Objects.equals(concurrentOp.getMember().getId(), operation.getUserId()))
+                    continue;
                 if (concurrentOp.getOperation().equals(OperationType.INSERT) && concurrentOp.getPosition() < opPosition) {
                     // 현재 operation보다 앞에 삽입한 경우
-                    if(concurrentOp.getInsertContent() == null) continue;;
+                    if(concurrentOp.getInsertContent() == null) continue;
                     opPosition += concurrentOp.getInsertContent().length();
                 } else if (concurrentOp.getOperation().equals(OperationType.DELETE) && concurrentOp.getPosition() < opPosition) {
                     // 현재 operation보다 앞을 삭제한 경우
-                    if(concurrentOp.getDeleteLength() == null) continue;;
+                    if(concurrentOp.getDeleteLength() == null) continue;
                     opPosition -= concurrentOp.getDeleteLength();
                 }
             }
@@ -181,8 +185,14 @@ public class OperationQueueProcessor {
                 }
                 doc.setVersion(documentVersions.get(operation.getDocumentId()).get());
             }
-            log.info("current content: {}", doc.getContentBuilder().toString());
             dirtyDocuments.add(docId);
+
+            // 로그 출력
+            if(!Objects.equals(operation.getPosition(), response.getPosition())) {
+                log.info("- OPERATION TRANSFORMED: pos={}->{}", operation.getPosition(), response.getPosition());
+            }
+            log.info("- saving operation: {}", response);
+            log.info("- current content: {}", doc.getContentBuilder().toString());
 
             // Operation DB에 저장 && Document version 업데이트
             // - 동기 처리 vs 비동기 처리
@@ -198,9 +208,6 @@ public class OperationQueueProcessor {
                     .member(null) // todo
                     .build()
             );
-
-            // 로그 출력
-           log.info("  수정된 Operation: {}", response);
 
             // 클라이언트에 브로드캐스트
             template.convertAndSend("/sub/edit/" + docId, response);
