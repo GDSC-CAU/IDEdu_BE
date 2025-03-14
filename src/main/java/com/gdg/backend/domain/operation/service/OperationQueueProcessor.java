@@ -155,19 +155,27 @@ public class OperationQueueProcessor {
         try {
             // 로그 출력
             log.info("[OPERATION]: {}", operation);
+            boolean doDelete = true;
             List<Operation> concurrentOperations = operationRepository.findByDocumentIdAndVersionGreaterThanFetchJoin(docId, baseVersion);
             for (Operation concurrentOp : concurrentOperations) {
                 // 본인의 Operation인 경우 충돌 처리 X
-                if (Objects.equals(concurrentOp.getMember().getId(), operation.getUserId()))
+                if(Objects.equals(concurrentOp.getMember().getId(), operation.getUserId()))
                     continue;
-                if (concurrentOp.getOperation().equals(OperationType.INSERT) && concurrentOp.getPosition() < opPosition) {
-                    // 현재 operation보다 앞에 삽입한 경우
+                if(concurrentOp.getPosition() == null) continue;
+                if(concurrentOp.getOperation().equals(OperationType.INSERT) && concurrentOp.getPosition() <= opPosition) {
+                    // 현재 operation보다 앞에 삽입한 경우 pos 증가 (등호 포함)
                     if(concurrentOp.getInsertContent() == null) continue;
                     opPosition += concurrentOp.getInsertContent().length();
-                } else if (concurrentOp.getOperation().equals(OperationType.DELETE) && concurrentOp.getPosition() < opPosition) {
-                    // 현재 operation보다 앞을 삭제한 경우
+                }
+                else if (concurrentOp.getOperation().equals(OperationType.DELETE)) {
                     if(concurrentOp.getDeleteLength() == null) continue;
-                    opPosition -= concurrentOp.getDeleteLength();
+                    // 이미 삭제한 문자를 삭제하려는 경우 작업 진행 X
+                    if(operation.getOperation().equals(OperationType.DELETE) && concurrentOp.getPosition().equals(opPosition)) {
+                        doDelete = false;
+                        break;
+                    }
+                    // 현재 operation보다 앞을 삭제한 경우 pos 감소 (등호 미포함)
+                    if(concurrentOp.getPosition() < opPosition) opPosition -= concurrentOp.getDeleteLength();
                 }
             }
 
@@ -181,7 +189,9 @@ public class OperationQueueProcessor {
             synchronized (doc) {
                 switch (operation.getOperation()) {
                     case INSERT -> doc.getContentBuilder().insert(idx, operation.getInsertContent());
-                    case DELETE -> doc.getContentBuilder().delete(idx - operation.getDeleteLength() + 1, idx + 1);
+                    case DELETE -> {
+                        if(doDelete) doc.getContentBuilder().delete(idx - operation.getDeleteLength() + 1, idx + 1);
+                    }
                 }
                 doc.setVersion(documentVersions.get(operation.getDocumentId()).get());
             }
