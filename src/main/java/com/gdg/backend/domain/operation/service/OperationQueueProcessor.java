@@ -155,7 +155,6 @@ public class OperationQueueProcessor {
         try {
             // 로그 출력
             log.info("[OPERATION]: {}", operation);
-            boolean doDelete = true;
             List<Operation> concurrentOperations = operationRepository.findByDocumentIdAndVersionGreaterThanFetchJoin(docId, baseVersion);
             for (Operation concurrentOp : concurrentOperations) {
                 // 본인의 Operation인 경우 충돌 처리 X
@@ -173,8 +172,7 @@ public class OperationQueueProcessor {
                     long[] deleteRange = new long[]{concurrentOp.getPosition() - concurrentOp.getDeleteLength() + 1, concurrentOp.getPosition()};
                     if(operation.getOperation().equals(OperationType.DELETE)
                     && deleteRange[0] <= opPosition && opPosition <= deleteRange[1]) {
-                        doDelete = false;
-                        break;
+                        return;
                     }
                     // 현재 operation보다 앞을 삭제한 경우 pos 감소 (등호 미포함)
                     if(concurrentOp.getPosition() < opPosition) opPosition -= concurrentOp.getDeleteLength();
@@ -191,9 +189,7 @@ public class OperationQueueProcessor {
             synchronized (doc) {
                 switch (operation.getOperation()) {
                     case INSERT -> doc.getContentBuilder().insert(idx, operation.getInsertContent());
-                    case DELETE -> {
-                        if(doDelete) doc.getContentBuilder().delete(idx - operation.getDeleteLength() + 1, idx + 1);
-                    }
+                    case DELETE -> doc.getContentBuilder().delete(idx - operation.getDeleteLength() + 1, idx + 1);
                 }
                 doc.setVersion(documentVersions.get(operation.getDocumentId()).get());
             }
