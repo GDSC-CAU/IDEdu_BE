@@ -68,50 +68,25 @@ public class OperationQueueProcessor {
 
     @PostConstruct
     public void postConstructJob() {
-        createTestDocument();
         fillDocumentPool();
         fillDocumentVersionPool();
     }
 
-    /** (임시) 테스트 문서 초기화 -> 다른 PostConstruct 메소드보다 먼저 호출되어야 함 */
-    private void createTestDocument() {
-        try {
-            final Long TEST_DOC_ID = 1L;
-            Document testDoc = documentRepository.findById(TEST_DOC_ID)
-                    .orElse(Document.builder()
-                            .id(1L)
-                            .build());
-            testDoc.setVersion(0L);
-            testDoc.setContent("");
-            documentRepository.save(testDoc);
-            // (임시) 테스트 문서 operation 로그 초기화
-            operationRepository.deleteByDocumentId(TEST_DOC_ID);
-
-            log.info("CREATED TEST DOCUMENT: {}", testDoc);
-        } catch (Exception e) {
-            log.error("Exception while creating test document: {}", e.getMessage());
-        }
-    }
-
     /** DB에서 Document fetch해서 메모리로 가져옴 */
-//    @PostConstruct
     public void fillDocumentPool() {
         List<Document> documents = documentRepository.findAll();
-        for(Document doc : documents) {
-            documentCache.put(doc.getId(), doc);
-        }
+        documents.forEach(doc -> documentCache.put(doc.getId(), doc));
         log.info("FILLED DOCUMENT POOL : {}", documentCache);
     }
 
     /** DB에 존재하는 Document version pool 추적 (인메모리라서 서버 껐다키면 사라지니까..) */
-//    @PostConstruct
     public void fillDocumentVersionPool () {
         List<Document> documents = documentRepository.findAll();
         documents.stream().forEach(document -> {
             if(document.getVersion() > documentVersions.getOrDefault(document.getId(), new AtomicLong(-1)).get())
                 documentVersions.put(document.getId(), new AtomicLong(document.getVersion()));
         });
-        log.info("FILLED DOCUMENT POOL: {}", documentVersions);
+        log.info("FILLED DOCUMENT VERSION POOL: {}", documentVersions);
     }
 
     @TrackExecutionTime
@@ -120,10 +95,14 @@ public class OperationQueueProcessor {
         Long baseVersion = operation.getBaseVersion();
         Long opPosition = operation.getPosition();
 
-        // documentID 없는 경우 예외처리 (캐시엔 없지만 DB에 있는 경우 캐시 업데이트)
-        Document doc = documentCache.computeIfAbsent(docId, id -> documentRepository.findById(docId)
-                .orElseThrow(() -> new GeneralHandler(ErrorCode.DOCUMENT_NOT_FOUND))
-        );
+        // documentID 없는 경우 캐시 업데이트
+        if(!documentCache.containsKey(docId)) {
+            Document toSave = documentRepository.findById(docId)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 문서입니다."));
+            documentCache.put(docId, toSave);
+            documentVersions.put(docId, new AtomicLong(toSave.getVersion()));
+        }
+        Document doc = documentCache.get(docId);
 
         // SYNC인 경우 따로 처리
         // - 현재 문서 상태 브로드캐스팅
