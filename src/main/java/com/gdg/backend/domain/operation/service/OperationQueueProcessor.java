@@ -6,6 +6,8 @@ import com.gdg.backend.common.annotation.TrackExecutionTime;
 import com.gdg.backend.domain.document.entity.Document;
 import com.gdg.backend.domain.document.repository.DocumentRepository;
 import com.gdg.backend.domain.enums.OperationType;
+import com.gdg.backend.domain.member.entity.Member;
+import com.gdg.backend.domain.member.repository.MemberRepository;
 import com.gdg.backend.domain.operation.dto.OperationRequestDto;
 import com.gdg.backend.domain.operation.dto.OperationResponseDto;
 import com.gdg.backend.domain.operation.dto.SyncOperationResponseDto;
@@ -39,6 +41,7 @@ public class OperationQueueProcessor {
 
     private final DocumentRepository documentRepository;
     private final OperationRepository operationRepository;
+    private final MemberRepository memberRepository;
     private final BlockingQueue<OperationRequestDto> operationQueue;
     private final SimpMessagingTemplate template;
     private final ConcurrentHashMap<Long, AtomicLong> documentVersions = new ConcurrentHashMap<>();
@@ -198,6 +201,11 @@ public class OperationQueueProcessor {
             // - 동기 처리 vs 비동기 처리
             // - todo 메모리에 Operation 캐싱하기
             //   - Operation 큐 만들어서 캐싱하기 (클라이언트 ACK에 맞춰 갱신)
+            Member author = memberRepository.findById(operation.getUserId())
+                            .orElseGet(() -> {
+                               log.info("- WARNING: member id {} doesn't exist", operation.getUserId());
+                               return null;
+                            });
             operationRepository.save(Operation.builder()
                     .operation(response.getOperation())
                     .document(doc)
@@ -205,7 +213,7 @@ public class OperationQueueProcessor {
                     .insertContent(response.getInsertContent())
                     .deleteLength(response.getDeleteLength())
                     .version(response.getVersion())
-                    .member(null) // todo
+                    .member(author) // todo
                     .build()
             );
 
