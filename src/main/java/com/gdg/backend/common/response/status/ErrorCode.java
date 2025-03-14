@@ -33,6 +33,10 @@ public enum ErrorCode implements BaseErrorCode {
 
     // 문서 관련 에러
     DOCUMENT_NOT_FOUND(HttpStatus.BAD_REQUEST, "DOCUMENT4001", "문서를 찾을 수 없습니다."),
+    
+    // 강의실 관련
+    CLASSROOM_NOT_FOUND(HttpStatus.BAD_REQUEST, "CLASSROOM4001", "강의실을 찾을 수 없습니다.")
+    
     ;
 
 
