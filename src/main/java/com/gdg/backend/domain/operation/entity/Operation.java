@@ -26,11 +26,11 @@ public class Operation extends BaseTimeEntity {
     @Enumerated(EnumType.STRING)
     private OperationType operation;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "member_id")
     private Member member;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "document_id")
     private Document document;
 

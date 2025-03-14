@@ -6,6 +6,8 @@ import com.gdg.backend.common.annotation.TrackExecutionTime;
 import com.gdg.backend.domain.document.entity.Document;
 import com.gdg.backend.domain.document.repository.DocumentRepository;
 import com.gdg.backend.domain.enums.OperationType;
+import com.gdg.backend.domain.member.entity.Member;
+import com.gdg.backend.domain.member.repository.MemberRepository;
 import com.gdg.backend.domain.operation.dto.OperationRequestDto;
 import com.gdg.backend.domain.operation.dto.OperationResponseDto;
 import com.gdg.backend.domain.operation.dto.SyncOperationResponseDto;
@@ -19,11 +21,9 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -38,6 +38,7 @@ public class OperationQueueProcessor {
 
     private final DocumentRepository documentRepository;
     private final OperationRepository operationRepository;
+    private final MemberRepository memberRepository;
     private final BlockingQueue<OperationRequestDto> operationQueue;
     private final SimpMessagingTemplate template;
     private final ConcurrentHashMap<Long, AtomicLong> documentVersions = new ConcurrentHashMap<>();
@@ -109,7 +110,7 @@ public class OperationQueueProcessor {
         // - version을 높이지 않음
         // - 추후 전략 패턴 등으로 추상화
         if(operation.getOperation().equals(OperationType.SYNC)) {
-            log.info("Received: SYNC");
+            log.info("[OPERATION] SYNC");
             String docContent = doc.getContentBuilder().toString();
             SyncOperationResponseDto response = new SyncOperationResponseDto(OperationType.SYNC, operation.getUserId(), documentVersions.get(docId).get(), docContent);
             template.convertAndSend("/sub/edit/" + docId, response);
@@ -132,17 +133,44 @@ public class OperationQueueProcessor {
         //   -> 클라이언트 ACK 추적 기능 구현 되면 (2)번으로 갈아타기
         try {
             // 로그 출력
-            log.info("Received: {}", operation);
-            List<Operation> concurrentOperations = operationRepository.findByDocumentIdAndVersionGreaterThan(docId, baseVersion);
+            log.info("[OPERATION]: {}", operation);
+            List<Operation> concurrentOperations = operationRepository.findByDocumentIdAndVersionGreaterThanFetchJoin(docId, baseVersion);
             for (Operation concurrentOp : concurrentOperations) {
-                if (concurrentOp.getOperation().equals(OperationType.INSERT) && concurrentOp.getPosition() < opPosition) {
-                    // 현재 operation보다 앞에 삽입한 경우
-                    if(concurrentOp.getInsertContent() == null) continue;;
+                // 본인의 Operation인 경우 충돌 처리 X
+                if(Objects.equals(concurrentOp.getMember().getId(), operation.getUserId()))
+                    continue;
+                if(concurrentOp.getPosition() == null) continue;
+                if(concurrentOp.getOperation().equals(OperationType.INSERT) && concurrentOp.getPosition() <= opPosition) {
+                    // 현재 operation보다 앞에 삽입한 경우 pos 증가 (등호 포함)
+                    if(concurrentOp.getInsertContent() == null) continue;
                     opPosition += concurrentOp.getInsertContent().length();
-                } else if (concurrentOp.getOperation().equals(OperationType.DELETE) && concurrentOp.getPosition() < opPosition) {
-                    // 현재 operation보다 앞을 삭제한 경우
-                    if(concurrentOp.getDeleteLength() == null) continue;;
-                    opPosition -= concurrentOp.getDeleteLength();
+                }
+                else if (concurrentOp.getOperation().equals(OperationType.DELETE)) {
+                    if(concurrentOp.getDeleteLength() == null) continue;
+                    // 이미 삭제한 문자를 삭제하려는 경우 작업 진행 X
+                    long[] deleteRange = new long[]{concurrentOp.getPosition() - concurrentOp.getDeleteLength() + 1, concurrentOp.getPosition()};
+                    long[] currentDeleteRange = new long[]{opPosition - operation.getDeleteLength() + 1, opPosition};
+                    // 범위가 완전히 겹치는 경우 Operation을 Drop한다. (DB 저장이나 버전 업데이트도 진행하지 않음)
+                    if (operation.getOperation().equals(OperationType.DELETE) && 
+                            deleteRange[0] <= currentDeleteRange[0] && currentDeleteRange[1] <= deleteRange[1]) {
+                        log.info("- DROP OPERATION (index {} already deleted", opPosition);
+                        return;
+                    }
+                    // 범위가 부분적으로 겹치고 현재 Operation이 더 앞 쪽인 경우, pos와 deleteLength를 감소시킨다.
+                    else if (operation.getOperation().equals(OperationType.DELETE) &&
+                            currentDeleteRange[0] < deleteRange[0] && currentDeleteRange[1] <= deleteRange[1]) {
+                        long delta = currentDeleteRange[1] - deleteRange[0];
+                        opPosition -= delta;
+                        operation.setDeleteLength((int) (operation.getDeleteLength() - delta));
+                    }
+                    // 범위가 부분적으로 겹치고 현재 Operation이 더 뒤 쪽인 경우, deleteLength만을 감소시킨다.
+                    else if (operation.getOperation().equals(OperationType.DELETE) &&
+                            deleteRange[0] <= currentDeleteRange[0] && deleteRange[1] < currentDeleteRange[1]) {
+                        long delta = deleteRange[1] - currentDeleteRange[0];
+                        operation.setDeleteLength((int) (operation.getDeleteLength() - delta));
+                    }
+                    // 범위가 겹치지 않고 현재 operation보다 앞을 삭제한 경우 pos 감소 (등호 미포함)
+                    else if(concurrentOp.getPosition() < opPosition) opPosition -= concurrentOp.getDeleteLength();
                 }
             }
 
@@ -160,13 +188,24 @@ public class OperationQueueProcessor {
                 }
                 doc.setVersion(documentVersions.get(operation.getDocumentId()).get());
             }
-            log.info("current content: {}", doc.getContentBuilder().toString());
             dirtyDocuments.add(docId);
+
+            // 로그 출력
+            if(!Objects.equals(operation.getPosition(), response.getPosition())) {
+                log.info("- OPERATION TRANSFORMED: pos={}->{}", operation.getPosition(), response.getPosition());
+            }
+            log.info("- saving operation: {}", response);
+            log.info("- current content: {}", doc.getContentBuilder().toString());
 
             // Operation DB에 저장 && Document version 업데이트
             // - 동기 처리 vs 비동기 처리
             // - todo 메모리에 Operation 캐싱하기
             //   - Operation 큐 만들어서 캐싱하기 (클라이언트 ACK에 맞춰 갱신)
+            Member author = memberRepository.findById(operation.getUserId())
+                            .orElseGet(() -> {
+                               log.info("- WARNING: member id {} doesn't exist", operation.getUserId());
+                               return null;
+                            });
             operationRepository.save(Operation.builder()
                     .operation(response.getOperation())
                     .document(doc)
@@ -174,12 +213,9 @@ public class OperationQueueProcessor {
                     .insertContent(response.getInsertContent())
                     .deleteLength(response.getDeleteLength())
                     .version(response.getVersion())
-                    .member(null) // todo
+                    .member(author) // todo
                     .build()
             );
-
-            // 로그 출력
-           log.info("  수정된 Operation: {}", response);
 
             // 클라이언트에 브로드캐스트
             template.convertAndSend("/sub/edit/" + docId, response);
