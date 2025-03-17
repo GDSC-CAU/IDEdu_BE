@@ -1,0 +1,253 @@
+package com.gdg.backend.domain.operation.service;
+
+import com.gdg.backend.common.exception.handler.GeneralHandler;
+import com.gdg.backend.common.response.status.ErrorCode;
+import com.gdg.backend.common.annotation.TrackExecutionTime;
+import com.gdg.backend.domain.document.entity.Document;
+import com.gdg.backend.domain.document.repository.DocumentRepository;
+import com.gdg.backend.domain.enums.OperationType;
+import com.gdg.backend.domain.member.entity.Member;
+import com.gdg.backend.domain.member.repository.MemberRepository;
+import com.gdg.backend.domain.operation.dto.OperationRequestDto;
+import com.gdg.backend.domain.operation.dto.OperationResponseDto;
+import com.gdg.backend.domain.operation.dto.SyncOperationResponseDto;
+import com.gdg.backend.domain.operation.entity.Operation;
+import com.gdg.backend.domain.operation.repository.OperationRepository;
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+
+
+/** OperationType 큐에서 주기적으로 이벤트를 가져와 처리하는 클래스 */
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class OperationQueueProcessor {
+
+    private final DocumentRepository documentRepository;
+    private final OperationRepository operationRepository;
+    private final MemberRepository memberRepository;
+    private final BlockingQueue<OperationRequestDto> operationQueue;
+    private final SimpMessagingTemplate template;
+    private final ConcurrentHashMap<Long, AtomicLong> documentVersions = new ConcurrentHashMap<>();
+
+    // 문서 상태 캐싱
+    // - todo 문서 많아지면 OutOfMemory 발생 가능 -> 추후에 LRU나 TTL 설정
+    private final ConcurrentHashMap<Long, Document> documentCache = new ConcurrentHashMap<>();
+
+    private final Set<Long> dirtyDocuments = new HashSet<>(); // 변경된 Document 추적 (주기적으로 저장)
+
+    @PostConstruct
+    public void startProcessing() {
+        // 별도 스레드에서 큐를 polling 하여 처리
+        new Thread(() -> {
+            while(true) {
+                try {
+                    OperationRequestDto operation = operationQueue.take();
+                    processOperation(operation);
+                } catch (InterruptedException e) {
+                    log.error("QUEUE PROCESSOR THREAD INTERRUPTED: {}", e.getMessage(), e);
+                    break;
+                } catch (Exception e) {
+                    log.error("QUEUE PROCESSOR UNCAUGHT EXCEPTION: {}", e.getMessage(), e);
+                }
+            }
+        }).start();
+    }
+
+    @PostConstruct
+    public void postConstructJob() {
+        fillDocumentPool();
+        fillDocumentVersionPool();
+    }
+
+    /** DB에서 Document fetch해서 메모리로 가져옴 */
+    public void fillDocumentPool() {
+        List<Document> documents = documentRepository.findAll();
+        documents.forEach(doc -> documentCache.put(doc.getId(), doc));
+        log.info("FILLED DOCUMENT POOL : {}", documentCache);
+    }
+
+    /** DB에 존재하는 Document version pool 추적 (인메모리라서 서버 껐다키면 사라지니까..) */
+    public void fillDocumentVersionPool () {
+        List<Document> documents = documentRepository.findAll();
+        documents.stream().forEach(document -> {
+            if(document.getVersion() > documentVersions.getOrDefault(document.getId(), new AtomicLong(-1)).get())
+                documentVersions.put(document.getId(), new AtomicLong(document.getVersion()));
+        });
+        log.info("FILLED DOCUMENT VERSION POOL: {}", documentVersions);
+    }
+
+    @TrackExecutionTime
+    public void processOperation(OperationRequestDto operation) {
+        Long docId = operation.getDocumentId();
+        Long baseVersion = operation.getBaseVersion();
+        Long opPosition = operation.getPosition();
+
+        // documentID 없는 경우 캐시 업데이트
+        if(!documentCache.containsKey(docId)) {
+            Document toSave = documentRepository.findById(docId)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 문서입니다."));
+            documentCache.put(docId, toSave);
+            documentVersions.put(docId, new AtomicLong(toSave.getVersion()));
+        }
+        Document doc = documentCache.get(docId);
+
+        // SYNC인 경우 따로 처리
+        // - 현재 문서 상태 브로드캐스팅
+        // - version을 높이지 않음
+        // - 추후 전략 패턴 등으로 추상화
+        if(operation.getOperation().equals(OperationType.SYNC)) {
+            log.info("[OPERATION] SYNC");
+            String docContent = doc.getContentBuilder().toString();
+            SyncOperationResponseDto response = new SyncOperationResponseDto(OperationType.SYNC, operation.getUserId(), documentVersions.get(docId).get(), docContent);
+            template.convertAndSend("/sub/edit/" + docId, response);
+            return;
+        }
+        
+        // 추후 수정
+        if(opPosition == null) throw new IllegalStateException("opPosition은 null일 수 없습니다.");
+
+        // operation 충돌 시 변환 처리
+        // - operation의 baseVersion과 서버가 추적하는 version을 비교
+        //   - 차이나는 version만큼 position을 업데이트한다 (insert: position 증가 / delete: position 감소)
+        // - 이전 version의 이벤트 추적 방법
+        // - (1) DB에서 가져온다 -> 구현이 쉬우니까 일단 이걸로 감
+        //   - 대신 DB 가져오는 시간이 너무 오래 걸릴 거임
+        // - (2) 메모리에 킵한다 -> 얼마나 킵할지 알 수 없음 (전부 킵하면 결국 OutOfMemory 뜰거임)
+        //   - 연결된 클라들이 어느 version까지 받았는지 추적하면 메모리 할당량 조절 가능
+        //   - 클라가 전부 version 11까지는 받았다 -> version 10 이상은 메모리에서 해제
+        //   - queue로 구현해서, 클라이언트 ACK 받을 시 queue에서 옛날 event pop / 새로운 event 받을 시 queue에 push
+        //   -> 클라이언트 ACK 추적 기능 구현 되면 (2)번으로 갈아타기
+        try {
+            // 로그 출력
+            log.info("[OPERATION]: {}", operation);
+            List<Operation> concurrentOperations = operationRepository.findByDocumentIdAndVersionGreaterThanFetchJoin(docId, baseVersion);
+            for (Operation concurrentOp : concurrentOperations) {
+                // 본인의 Operation인 경우 충돌 처리 X
+                if(Objects.equals(concurrentOp.getMember().getId(), operation.getUserId()))
+                    continue;
+                if(concurrentOp.getPosition() == null) continue;
+                if(concurrentOp.getOperation().equals(OperationType.INSERT) && concurrentOp.getPosition() <= opPosition) {
+                    // 현재 operation보다 앞에 삽입한 경우 pos 증가 (등호 포함)
+                    if(concurrentOp.getInsertContent() == null) continue;
+                    opPosition += concurrentOp.getInsertContent().length();
+                }
+                else if (concurrentOp.getOperation().equals(OperationType.DELETE)) {
+                    if(concurrentOp.getDeleteLength() == null) continue;
+                    // 이미 삭제한 문자를 삭제하려는 경우 작업 진행 X
+                    long[] deleteRange = new long[]{concurrentOp.getPosition() - concurrentOp.getDeleteLength() + 1, concurrentOp.getPosition()};
+                    long[] currentDeleteRange = new long[]{opPosition - operation.getDeleteLength() + 1, opPosition};
+                    // 범위가 완전히 겹치는 경우 Operation을 Drop한다. (DB 저장이나 버전 업데이트도 진행하지 않음)
+                    if (operation.getOperation().equals(OperationType.DELETE) && 
+                            deleteRange[0] <= currentDeleteRange[0] && currentDeleteRange[1] <= deleteRange[1]) {
+                        log.info("- DROP OPERATION (index {} already deleted", opPosition);
+                        return;
+                    }
+                    // 범위가 부분적으로 겹치고 현재 Operation이 더 앞 쪽인 경우, pos와 deleteLength를 감소시킨다.
+                    else if (operation.getOperation().equals(OperationType.DELETE) &&
+                            currentDeleteRange[0] < deleteRange[0] && currentDeleteRange[1] <= deleteRange[1]) {
+                        long delta = currentDeleteRange[1] - deleteRange[0];
+                        opPosition -= delta;
+                        operation.setDeleteLength((int) (operation.getDeleteLength() - delta));
+                    }
+                    // 범위가 부분적으로 겹치고 현재 Operation이 더 뒤 쪽인 경우, deleteLength만을 감소시킨다.
+                    else if (operation.getOperation().equals(OperationType.DELETE) &&
+                            deleteRange[0] <= currentDeleteRange[0] && deleteRange[1] < currentDeleteRange[1]) {
+                        long delta = deleteRange[1] - currentDeleteRange[0];
+                        operation.setDeleteLength((int) (operation.getDeleteLength() - delta));
+                    }
+                    // 범위가 겹치지 않고 현재 operation보다 앞을 삭제한 경우 pos 감소 (등호 미포함)
+                    else if(concurrentOp.getPosition() < opPosition) opPosition -= concurrentOp.getDeleteLength();
+                }
+            }
+
+            // 버전 부여
+            OperationResponseDto response = OperationResponseDto.of(operation);
+            response.setPosition(opPosition);
+            response.setVersion(documentVersions.get(operation.getDocumentId()).incrementAndGet());
+
+            // 문서 상태 갱신
+            int idx = Math.toIntExact(opPosition);
+            synchronized (doc) {
+                switch (operation.getOperation()) {
+                    case INSERT -> doc.getContentBuilder().insert(idx, operation.getInsertContent());
+                    case DELETE -> doc.getContentBuilder().delete(idx - operation.getDeleteLength() + 1, idx + 1);
+                }
+                doc.setVersion(documentVersions.get(operation.getDocumentId()).get());
+            }
+            dirtyDocuments.add(docId);
+
+            // 로그 출력
+            if(!Objects.equals(operation.getPosition(), response.getPosition())) {
+                log.info("- OPERATION TRANSFORMED: pos={}->{}", operation.getPosition(), response.getPosition());
+            }
+            log.info("- saving operation: {}", response);
+            log.info("- current content: {}", doc.getContentBuilder().toString());
+
+            // Operation DB에 저장 && Document version 업데이트
+            // - 동기 처리 vs 비동기 처리
+            // - todo 메모리에 Operation 캐싱하기
+            //   - Operation 큐 만들어서 캐싱하기 (클라이언트 ACK에 맞춰 갱신)
+            Member author = memberRepository.findById(operation.getUserId())
+                            .orElseGet(() -> {
+                               log.info("- WARNING: member id {} doesn't exist", operation.getUserId());
+                               return null;
+                            });
+            operationRepository.save(Operation.builder()
+                    .operation(response.getOperation())
+                    .document(doc)
+                    .position(response.getPosition())
+                    .insertContent(response.getInsertContent())
+                    .deleteLength(response.getDeleteLength())
+                    .version(response.getVersion())
+                    .member(author) // todo
+                    .build()
+            );
+
+            // 클라이언트에 브로드캐스트
+            template.convertAndSend("/sub/edit/" + docId, response);
+        } catch (Exception e) {
+            log.error("Exception while handling operation {} -> {}", operation, e.getMessage(), e);
+        }
+    }
+
+    /** 주기적으로 변경된 문서 저장 <br>
+     * - DB 쓰기는 네트워크 요청 + 디스크 I/O를 포함하므로 무거움
+     * - DB 작업은 processOperation에서 최대한 제거해서 실행시간 줄여서 지연시간 & 트랜잭션 부하 감소
+     * - 실시간성은 documentCache로 유지하고 저장은 백그라운드에서 주기적으로 진행
+     * */
+    @Scheduled(fixedRate = 10000) // 10초마다 실행
+    public void scheduleSavingDirtyDocuments() {
+        if(!dirtyDocuments.isEmpty()) {
+            log.info("SAVING DIRTY DOCUMENTS (id=" + dirtyDocuments + ")");
+            saveDirtyDocuments();
+        }
+    }
+
+    @Transactional
+    public void saveDirtyDocuments() {
+        for (Long docId : dirtyDocuments) {
+            Document cachedDoc = documentCache.get(docId);
+            if (cachedDoc != null) {
+                synchronized (cachedDoc) {
+                    cachedDoc.syncContentBuilder();
+                    documentRepository.save(cachedDoc);
+                }
+            }
+        }
+        dirtyDocuments.clear();
+    }
+}
